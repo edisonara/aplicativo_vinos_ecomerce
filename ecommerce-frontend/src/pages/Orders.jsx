@@ -1,177 +1,236 @@
-import React, { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import React, { useEffect, useState } from 'react';
 import {
   Container,
   Typography,
-  Box,
-  Card,
-  CardContent,
-  Grid,
-  Chip,
-  Button,
-  Divider,
   Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Button,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Box,
+  Chip,
+  Alert,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import { fetchOrders } from '../redux/slices/orderSlice';
-import { useNavigate } from 'react-router-dom';
-import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import PendingIcon from '@mui/icons-material/Pending';
-
-const StyledCard = styled(Card)(({ theme }) => ({
-  marginBottom: theme.spacing(2),
-  transition: 'transform 0.2s ease-in-out',
-  '&:hover': {
-    transform: 'translateY(-2px)',
-  },
-}));
-
-const OrderStatus = styled(Chip)(({ theme, status }) => {
-  const colors = {
-    pending: theme.palette.warning.main,
-    processing: theme.palette.info.main,
-    shipped: theme.palette.primary.main,
-    delivered: theme.palette.success.main,
-  };
-
-  return {
-    backgroundColor: colors[status] || theme.palette.grey[500],
-    color: 'white',
-    fontWeight: 'bold',
-  };
-});
-
-const getStatusIcon = (status) => {
-  switch (status) {
-    case 'pending':
-      return <PendingIcon />;
-    case 'shipped':
-      return <LocalShippingIcon />;
-    case 'delivered':
-      return <CheckCircleIcon />;
-    default:
-      return <PendingIcon />;
-  }
-};
+import { useDispatch, useSelector } from 'react-redux';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CancelIcon from '@mui/icons-material/Cancel';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { fetchOrders, cancelOrder, deleteOrder } from '../redux/slices/orderSlice';
 
 function Orders() {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const { orders, loading, error } = useSelector((state) => state.orders);
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [actionType, setActionType] = useState(null);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      dispatch(fetchOrders());
-    } else {
-      navigate('/login');
+    dispatch(fetchOrders());
+  }, [dispatch]);
+
+  const handleViewOrder = (order) => {
+    setSelectedOrder(order);
+    setActionType('view');
+    setOpenDialog(true);
+  };
+
+  const handleCancelOrder = (order) => {
+    setSelectedOrder(order);
+    setActionType('cancel');
+    setOpenDialog(true);
+  };
+
+  const handleDeleteOrder = (order) => {
+    setSelectedOrder(order);
+    setActionType('delete');
+    setOpenDialog(true);
+  };
+
+  const handleConfirmAction = async () => {
+    try {
+      if (actionType === 'cancel') {
+        await dispatch(cancelOrder(selectedOrder._id)).unwrap();
+      } else if (actionType === 'delete') {
+        await dispatch(deleteOrder(selectedOrder._id)).unwrap();
+      }
+      setOpenDialog(false);
+    } catch (err) {
+      console.error('Error:', err);
     }
-  }, [dispatch, isAuthenticated, navigate]);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pendiente':
+        return 'warning';
+      case 'completado':
+        return 'success';
+      case 'cancelado':
+        return 'error';
+      default:
+        return 'default';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <Typography>Cargando órdenes...</Typography>
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <Typography color="error">{error}</Typography>
-      </Box>
-    );
-  }
-
-  if (!orders.length) {
-    return (
       <Container sx={{ py: 8 }}>
-        <Box textAlign="center">
-          <Typography variant="h4" gutterBottom>
-            No tienes órdenes todavía
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => navigate('/products')}
-            sx={{ mt: 2 }}
-          >
-            Ir a Comprar
-          </Button>
-        </Box>
+        <Typography>Cargando pedidos...</Typography>
       </Container>
     );
   }
 
   return (
     <Container sx={{ py: 8 }}>
-      <Typography variant="h3" component="h1" gutterBottom>
-        Mis Órdenes
+      <Typography variant="h4" gutterBottom>
+        Mis Pedidos
       </Typography>
-      <Grid container spacing={3}>
-        {orders.map((order) => (
-          <Grid item xs={12} key={order.id}>
-            <StyledCard>
-              <CardContent>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                      <Typography variant="h6">
-                        Orden #{order.id}
-                      </Typography>
-                      <OrderStatus
-                        label={order.status.toUpperCase()}
-                        status={order.status}
-                        icon={getStatusIcon(order.status)}
-                      />
-                    </Box>
-                    <Divider sx={{ mb: 2 }} />
-                  </Grid>
-                  <Grid item xs={12} md={8}>
-                    <Box>
-                      {order.items.map((item) => (
-                        <Box key={item.id} mb={1} display="flex" justifyContent="space-between">
-                          <Typography>
-                            {item.quantity}x {item.name}
-                          </Typography>
-                          <Typography>
-                            ${(item.price * item.quantity).toFixed(2)}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50' }}>
-                      <Typography variant="subtitle2" gutterBottom>
-                        Detalles del Pedido
-                      </Typography>
-                      <Box display="flex" justifyContent="space-between" mb={1}>
-                        <Typography>Fecha:</Typography>
-                        <Typography>{new Date(order.createdAt).toLocaleDateString()}</Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between" mb={1}>
-                        <Typography>Total:</Typography>
-                        <Typography fontWeight="bold">${order.total.toFixed(2)}</Typography>
-                      </Box>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        onClick={() => navigate(`/orders/${order.id}`)}
-                        sx={{ mt: 2 }}
-                      >
-                        Ver Detalles
-                      </Button>
-                    </Paper>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </StyledCard>
-          </Grid>
-        ))}
-      </Grid>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>ID Pedido</TableCell>
+              <TableCell>Fecha</TableCell>
+              <TableCell>Total</TableCell>
+              <TableCell>Estado</TableCell>
+              <TableCell align="right">Acciones</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {orders.map((order) => (
+              <TableRow key={order._id}>
+                <TableCell>{order._id}</TableCell>
+                <TableCell>{formatDate(order.createdAt)}</TableCell>
+                <TableCell>${order.totalAmount.toFixed(2)}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={order.status}
+                    color={getStatusColor(order.status)}
+                    size="small"
+                  />
+                </TableCell>
+                <TableCell align="right">
+                  <IconButton
+                    color="primary"
+                    onClick={() => handleViewOrder(order)}
+                  >
+                    <VisibilityIcon />
+                  </IconButton>
+                  {order.status === 'pendiente' && (
+                    <IconButton
+                      color="warning"
+                      onClick={() => handleCancelOrder(order)}
+                    >
+                      <CancelIcon />
+                    </IconButton>
+                  )}
+                  <IconButton
+                    color="error"
+                    onClick={() => handleDeleteOrder(order)}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Dialog
+        open={openDialog}
+        onClose={() => setOpenDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {actionType === 'view'
+            ? 'Detalles del Pedido'
+            : actionType === 'cancel'
+            ? 'Cancelar Pedido'
+            : 'Eliminar Pedido'}
+        </DialogTitle>
+        <DialogContent>
+          {actionType === 'view' && selectedOrder && (
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                Productos:
+              </Typography>
+              {selectedOrder.items.map((item, index) => (
+                <Box key={index} sx={{ mb: 2 }}>
+                  <Typography>
+                    {item.product.name} - Cantidad: {item.quantity}
+                  </Typography>
+                  <Typography color="text.secondary">
+                    Precio: ${item.price.toFixed(2)}
+                  </Typography>
+                </Box>
+              ))}
+              <Typography variant="h6" sx={{ mt: 2 }}>
+                Dirección de envío:
+              </Typography>
+              <Typography>
+                {selectedOrder.shippingAddress.street}
+                <br />
+                {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state}
+                <br />
+                {selectedOrder.shippingAddress.zipCode}
+                <br />
+                {selectedOrder.shippingAddress.country}
+              </Typography>
+            </Box>
+          )}
+          {actionType === 'cancel' && (
+            <Typography>
+              ¿Estás seguro de que deseas cancelar este pedido? Esta acción no se puede deshacer.
+            </Typography>
+          )}
+          {actionType === 'delete' && (
+            <Typography>
+              ¿Estás seguro de que deseas eliminar este pedido? Esta acción no se puede deshacer.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>
+            {actionType === 'view' ? 'Cerrar' : 'Cancelar'}
+          </Button>
+          {actionType !== 'view' && (
+            <Button
+              variant="contained"
+              color={actionType === 'delete' ? 'error' : 'warning'}
+              onClick={handleConfirmAction}
+            >
+              {actionType === 'cancel' ? 'Cancelar Pedido' : 'Eliminar'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

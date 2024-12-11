@@ -11,10 +11,19 @@ export const fetchProducts = createAsyncThunk(
     }
 );
 
+export const fetchProductById = createAsyncThunk(
+    'products/fetchProductById',
+    async (id) => {
+        const response = await axios.get(`${API_URL}/products/${id}`);
+        return response.data;
+    }
+);
+
 export const productSlice = createSlice({
     name: 'products',
     initialState: {
         items: [],
+        selectedProduct: null,
         loading: false,
         error: null
     },
@@ -30,6 +39,18 @@ export const productSlice = createSlice({
                 state.items = action.payload;
             })
             .addCase(fetchProducts.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.error.message;
+            })
+            .addCase(fetchProductById.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(fetchProductById.fulfilled, (state, action) => {
+                state.loading = false;
+                state.selectedProduct = action.payload;
+            })
+            .addCase(fetchProductById.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.error.message;
             });

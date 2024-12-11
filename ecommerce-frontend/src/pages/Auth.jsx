@@ -1,216 +1,233 @@
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
 import {
   Container,
+  Paper,
   Typography,
-  Box,
   TextField,
   Button,
-  Paper,
+  Box,
   Tab,
   Tabs,
   Alert,
-  InputAdornment,
   IconButton,
+  InputAdornment,
+  Grid,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import { login, register, clearError } from '../redux/slices/authSlice';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { login, register } from '../redux/slices/authSlice';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
-import EmailIcon from '@mui/icons-material/Email';
 
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  marginTop: theme.spacing(8),
-  padding: theme.spacing(4),
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  maxWidth: 400,
-  margin: '0 auto',
-  [theme.breakpoints.up('sm')]: {
-    padding: theme.spacing(6),
-  },
-}));
-
-const Form = styled('form')(({ theme }) => ({
-  width: '100%',
-  marginTop: theme.spacing(3),
-}));
+function TabPanel({ children, value, index }) {
+  return (
+    <div hidden={value !== index} style={{ padding: '24px 0' }}>
+      {value === index && <Box>{children}</Box>}
+    </div>
+  );
+}
 
 function Auth() {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [tab, setTab] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
+  const [error, setError] = useState('');
+  const [loginData, setLoginData] = useState({
     email: '',
     password: '',
+  });
+  const [registerData, setRegisterData] = useState({
     name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    phone: '',
   });
 
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const { loading, error } = useSelector((state) => state.auth);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    if (error) dispatch(clearError());
+  const handleTabChange = (event, newValue) => {
+    setTab(newValue);
+    setError('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    const action = tab === 0 ? login : register;
-    const userData = tab === 0 
-      ? { email: formData.email, password: formData.password }
-      : formData;
-
+    setError('');
+    
     try {
-      await dispatch(action(userData)).unwrap();
+      await dispatch(login(loginData)).unwrap();
       navigate('/');
     } catch (err) {
-      // Error ya manejado por el slice
+      setError(err.message || 'Error al iniciar sesión');
     }
   };
 
-  return (
-    <Container component="main" maxWidth="xs">
-      <StyledPaper elevation={3}>
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            mb: 3,
-          }}
-        >
-          <Box
-            sx={{
-              width: 50,
-              height: 50,
-              borderRadius: '50%',
-              backgroundColor: 'primary.main',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              mb: 2,
-            }}
-          >
-            <LockOutlinedIcon sx={{ color: 'white' }} />
-          </Box>
-          <Typography component="h1" variant="h5">
-            {tab === 0 ? 'Iniciar Sesión' : 'Registrarse'}
-          </Typography>
-        </Box>
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
 
+    if (registerData.password !== registerData.confirmPassword) {
+      setError('Las contraseñas no coinciden');
+      return;
+    }
+
+    if (registerData.password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    try {
+      const result = await dispatch(register(registerData)).unwrap();
+      if (result.token) {
+        navigate('/');
+      }
+    } catch (err) {
+      console.error('Error de registro:', err);
+      setError(err.message || 'Error al registrarse. Por favor, intente nuevamente.');
+    }
+  };
+
+  const handleClickShowPassword = () => {
+    setShowPassword(!showPassword);
+  };
+
+  return (
+    <Container maxWidth="sm" sx={{ py: 8 }}>
+      <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
         <Tabs
           value={tab}
-          onChange={(e, newValue) => setTab(newValue)}
+          onChange={handleTabChange}
           variant="fullWidth"
-          sx={{ mb: 4 }}
+          indicatorColor="primary"
+          textColor="primary"
+          sx={{ mb: 3 }}
         >
           <Tab label="Iniciar Sesión" />
           <Tab label="Registrarse" />
         </Tabs>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
         )}
 
-        <Form onSubmit={handleSubmit}>
-          {tab === 1 && (
+        <TabPanel value={tab} index={0}>
+          <form onSubmit={handleLoginSubmit}>
             <TextField
-              margin="normal"
-              required
               fullWidth
-              label="Nombre"
-              name="name"
-              autoComplete="name"
-              value={formData.name}
-              onChange={handleChange}
+              label="Correo electrónico"
+              type="email"
+              margin="normal"
+              value={loginData.email}
+              onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+              required
+            />
+            <TextField
+              fullWidth
+              label="Contraseña"
+              type={showPassword ? 'text' : 'password'}
+              margin="normal"
+              value={loginData.password}
+              onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+              required
               InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <PersonOutlineIcon />
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={handleClickShowPassword} edge="end">
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
                   </InputAdornment>
                 ),
               }}
             />
-          )}
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            label="Email"
-            name="email"
-            autoComplete="email"
-            value={formData.email}
-            onChange={handleChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <EmailIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="password"
-            label="Contraseña"
-            type={showPassword ? 'text' : 'password'}
-            autoComplete="current-password"
-            value={formData.password}
-            onChange={handleChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <LockOutlinedIcon />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            disabled={loading}
-            sx={{
-              mt: 3,
-              mb: 2,
-              py: 1.5,
-              background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-              '&:hover': {
-                background: 'linear-gradient(45deg, #21CBF3 30%, #2196F3 90%)',
-              },
-            }}
-          >
-            {loading
-              ? 'Procesando...'
-              : tab === 0
-              ? 'Iniciar Sesión'
-              : 'Registrarse'}
-          </Button>
-        </Form>
-      </StyledPaper>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              fullWidth
+              size="large"
+              sx={{ mt: 3 }}
+            >
+              Iniciar Sesión
+            </Button>
+          </form>
+        </TabPanel>
+
+        <TabPanel value={tab} index={1}>
+          <form onSubmit={handleRegisterSubmit}>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Nombre completo"
+                  value={registerData.name}
+                  onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Correo electrónico"
+                  type="email"
+                  value={registerData.email}
+                  onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Teléfono"
+                  value={registerData.phone}
+                  onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Contraseña"
+                  type={showPassword ? 'text' : 'password'}
+                  value={registerData.password}
+                  onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                  required
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={handleClickShowPassword} edge="end">
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Confirmar contraseña"
+                  type={showPassword ? 'text' : 'password'}
+                  value={registerData.confirmPassword}
+                  onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
+                  required
+                />
+              </Grid>
+            </Grid>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              fullWidth
+              size="large"
+              sx={{ mt: 3 }}
+            >
+              Registrarse
+            </Button>
+          </form>
+        </TabPanel>
+      </Paper>
     </Container>
   );
 }

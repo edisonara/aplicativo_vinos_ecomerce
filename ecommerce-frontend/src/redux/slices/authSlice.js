@@ -18,10 +18,14 @@ export const register = createAsyncThunk(
     'auth/register',
     async (userData, { rejectWithValue }) => {
         try {
-            const response = await authAPI.register(userData);
+            const { confirmPassword, ...registerData } = userData;
+            const response = await authAPI.register(registerData);
+            if (response.data.token) {
+                localStorage.setItem('token', response.data.token);
+            }
             return response.data;
         } catch (error) {
-            return rejectWithValue(error.response.data);
+            return rejectWithValue(error.response?.data || { message: 'Error al registrarse' });
         }
     }
 );
@@ -78,7 +82,9 @@ const authSlice = createSlice({
             })
             .addCase(register.fulfilled, (state, action) => {
                 state.loading = false;
-                state.user = action.payload;
+                state.isAuthenticated = true;
+                state.user = action.payload.user;
+                state.token = action.payload.token;
             })
             .addCase(register.rejected, (state, action) => {
                 state.loading = false;

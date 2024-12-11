@@ -1,114 +1,84 @@
-import React, { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import React, { useState } from 'react';
 import {
   Container,
   Typography,
   Box,
+  Button,
+  Grid,
   Card,
   CardContent,
-  Grid,
+  CardMedia,
   IconButton,
-  Button,
-  Divider,
   TextField,
+  Divider,
   Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { styled } from '@mui/material/styles';
-import { fetchCart, updateCartItem, removeFromCart } from '../redux/slices/cartSlice';
+import { updateCartItem, removeFromCart, clearCart } from '../redux/slices/cartSlice';
 import { createOrder } from '../redux/slices/orderSlice';
-import { useNavigate } from 'react-router-dom';
-
-const StyledCard = styled(Card)(({ theme }) => ({
-  marginBottom: theme.spacing(2),
-  transition: 'transform 0.2s ease-in-out',
-  '&:hover': {
-    transform: 'translateY(-2px)',
-  },
-}));
-
-const CartItemImage = styled('img')({
-  width: '100%',
-  height: '120px',
-  objectFit: 'cover',
-  borderRadius: '8px',
-});
-
-const Summary = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(3),
-  position: 'sticky',
-  top: theme.spacing(2),
-}));
 
 function Cart() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { items, loading, error } = useSelector((state) => state.cart);
+  const { items, total } = useSelector((state) => state.cart);
   const { isAuthenticated } = useSelector((state) => state.auth);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      dispatch(fetchCart());
-    }
-  }, [dispatch, isAuthenticated]);
+  const [checkoutDialog, setCheckoutDialog] = useState(false);
+  const [shippingAddress, setShippingAddress] = useState({
+    street: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    country: ''
+  });
 
   const handleQuantityChange = (itemId, currentQuantity, change) => {
     const newQuantity = currentQuantity + change;
-    if (newQuantity > 0) {
-      dispatch(updateCartItem({ itemId, quantity: newQuantity }));
-    } else {
-      dispatch(removeFromCart(itemId));
-    }
+    if (newQuantity < 1) return;
+    dispatch(updateCartItem({ itemId, quantity: newQuantity }));
   };
 
   const handleRemoveItem = (itemId) => {
     dispatch(removeFromCart(itemId));
   };
 
-  const calculateTotal = () => {
-    return items.reduce((total, item) => total + item.price * item.quantity, 0);
-  };
-
   const handleCheckout = () => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate('/auth');
       return;
     }
-
-    const orderData = {
-      items: items.map(item => ({
-        productId: item.id,
-        quantity: item.quantity
-      })),
-      total: calculateTotal()
-    };
-
-    dispatch(createOrder(orderData))
-      .unwrap()
-      .then(() => {
-        navigate('/orders');
-      });
+    setCheckoutDialog(true);
   };
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <Typography>Cargando carrito...</Typography>
-      </Box>
-    );
-  }
+  const handleConfirmOrder = async () => {
+    try {
+      await dispatch(createOrder({
+        items: items.map(item => ({
+          product: item.id,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        shippingAddress,
+        totalAmount: total,
+        paymentMethod: 'tarjeta'
+      })).unwrap();
 
-  if (error) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <Typography color="error">{error}</Typography>
-      </Box>
-    );
-  }
+      dispatch(clearCart());
+      setCheckoutDialog(false);
+      navigate('/orders');
+    } catch (error) {
+      console.error('Error al crear la orden:', error);
+    }
+  };
 
-  if (!items.length) {
+  if (items.length === 0) {
     return (
       <Container sx={{ py: 8 }}>
         <Box textAlign="center">
@@ -121,7 +91,7 @@ function Cart() {
             onClick={() => navigate('/products')}
             sx={{ mt: 2 }}
           >
-            Ir a Productos
+            Ir a Comprar
           </Button>
         </Box>
       </Container>
@@ -130,50 +100,34 @@ function Cart() {
 
   return (
     <Container sx={{ py: 8 }}>
-      <Typography variant="h3" component="h1" gutterBottom>
+      <Typography variant="h4" gutterBottom>
         Carrito de Compras
       </Typography>
       <Grid container spacing={4}>
         <Grid item xs={12} md={8}>
           {items.map((item) => (
-            <StyledCard key={item.id}>
+            <Card key={item.id} sx={{ mb: 2 }}>
               <CardContent>
                 <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} sm={3}>
-                    <CartItemImage src={item.image} alt={item.name} />
+                  <Grid item xs={3}>
+                    <CardMedia
+                      component="img"
+                      height="120"
+                      image={item.image}
+                      alt={item.name}
+                      sx={{ objectFit: 'contain' }}
+                    />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Typography variant="h6" gutterBottom>
-                      {item.name}
-                    </Typography>
-                    <Typography color="primary" variant="h6">
-                      ${item.price}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={3}>
-                    <Box display="flex" alignItems="center" justifyContent="center">
-                      <IconButton
-                        onClick={() => handleQuantityChange(item.id, item.quantity, -1)}
-                      >
-                        <RemoveIcon />
-                      </IconButton>
-                      <TextField
-                        value={item.quantity}
-                        size="small"
-                        InputProps={{
-                          readOnly: true,
-                          sx: { width: '60px', textAlign: 'center' }
-                        }}
-                      />
-                      <IconButton
-                        onClick={() => handleQuantityChange(item.id, item.quantity, 1)}
-                      >
-                        <AddIcon />
-                      </IconButton>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={2}>
-                    <Box display="flex" justifyContent="flex-end">
+                  <Grid item xs={9}>
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                      <Box>
+                        <Typography variant="h6" gutterBottom>
+                          {item.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          Precio unitario: ${item.price.toFixed(2)}
+                        </Typography>
+                      </Box>
                       <IconButton
                         color="error"
                         onClick={() => handleRemoveItem(item.id)}
@@ -181,30 +135,66 @@ function Cart() {
                         <DeleteIcon />
                       </IconButton>
                     </Box>
+                    <Box display="flex" alignItems="center" mt={2}>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleQuantityChange(item.id, item.quantity, -1)}
+                      >
+                        <RemoveIcon />
+                      </IconButton>
+                      <TextField
+                        size="small"
+                        value={item.quantity}
+                        InputProps={{ readOnly: true }}
+                        sx={{ width: 60, mx: 1 }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => handleQuantityChange(item.id, item.quantity, 1)}
+                      >
+                        <AddIcon />
+                      </IconButton>
+                      <Typography variant="body1" sx={{ ml: 'auto' }}>
+                        ${(item.price * item.quantity).toFixed(2)}
+                      </Typography>
+                    </Box>
                   </Grid>
                 </Grid>
               </CardContent>
-            </StyledCard>
+            </Card>
           ))}
         </Grid>
         <Grid item xs={12} md={4}>
-          <Summary elevation={3}>
-            <Typography variant="h5" gutterBottom>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
               Resumen del Pedido
             </Typography>
-            <Divider sx={{ my: 2 }} />
-            <Box display="flex" justifyContent="space-between" mb={2}>
-              <Typography>Subtotal</Typography>
-              <Typography>${calculateTotal().toFixed(2)}</Typography>
-            </Box>
-            <Box display="flex" justifyContent="space-between" mb={2}>
-              <Typography>Envío</Typography>
-              <Typography>Gratis</Typography>
-            </Box>
-            <Divider sx={{ my: 2 }} />
-            <Box display="flex" justifyContent="space-between" mb={3}>
-              <Typography variant="h6">Total</Typography>
-              <Typography variant="h6">${calculateTotal().toFixed(2)}</Typography>
+            <Box my={2}>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography>Subtotal:</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography align="right">${total.toFixed(2)}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography>Envío:</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography align="right">Gratis</Typography>
+                </Grid>
+              </Grid>
+              <Divider sx={{ my: 2 }} />
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="h6">Total:</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="h6" align="right">
+                    ${total.toFixed(2)}
+                  </Typography>
+                </Grid>
+              </Grid>
             </Box>
             <Button
               variant="contained"
@@ -212,19 +202,71 @@ function Cart() {
               fullWidth
               size="large"
               onClick={handleCheckout}
-              sx={{
-                py: 2,
-                background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                '&:hover': {
-                  background: 'linear-gradient(45deg, #21CBF3 30%, #2196F3 90%)',
-                },
-              }}
+              sx={{ mt: 2 }}
             >
               Proceder al Pago
             </Button>
-          </Summary>
+          </Paper>
         </Grid>
       </Grid>
+
+      <Dialog open={checkoutDialog} onClose={() => setCheckoutDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Dirección de Envío</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Calle y número"
+                value={shippingAddress.street}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, street: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Ciudad"
+                value={shippingAddress.city}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Estado/Provincia"
+                value={shippingAddress.state}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, state: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Código Postal"
+                value={shippingAddress.zipCode}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, zipCode: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="País"
+                value={shippingAddress.country}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, country: e.target.value })}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCheckoutDialog(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleConfirmOrder}
+            disabled={!Object.values(shippingAddress).every(Boolean)}
+          >
+            Confirmar Pedido
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
