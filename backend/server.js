@@ -7,6 +7,7 @@ const bodyParser = require('body-parser');
 // Rutas
 const productRoutes = require('./routes/product.routes');
 const orderRoutes = require('./routes/order.routes');
+const userRoutes = require('./routes/user.routes');
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.get('/', (req, res) => {
 // Rutas API
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/users', userRoutes);
 
 // Manejo de errores
 app.use((err, req, res, next) => {
