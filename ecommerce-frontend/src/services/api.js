@@ -55,22 +55,70 @@ export const productAPI = {
   search: (query) => api.get(`/products/search`, { params: { query } }),
 };
 
-// API del carrito
+// API del carrito usando órdenes
 export const cartAPI = {
-  getCart: () => api.get('/cart'),
-  addToCart: (productId, quantity) => api.post('/cart/add', { productId, quantity }),
-  updateCartItem: (itemId, quantity) => api.put(`/cart/items/${itemId}`, { quantity }),
-  removeFromCart: (itemId) => api.delete(`/cart/items/${itemId}`),
-  clearCart: () => api.delete('/cart/clear'),
+  // Obtener items del carrito (órdenes con status 'cart')
+  getCart: () => api.get('/orders?status=cart'),
+  
+  // Agregar al carrito (crear una nueva orden con status 'cart')
+  addToCart: (productId, quantity, price) => api.post('/orders', {
+    items: [{
+      product: productId,
+      quantity,
+      price
+    }],
+    status: 'cart',
+    totalAmount: price * quantity
+  }),
+  
+  // Actualizar item del carrito
+  updateCartItem: (orderId, itemId, quantity, price) => api.put(`/orders/${orderId}`, {
+    items: [{
+      _id: itemId,
+      quantity
+    }],
+    totalAmount: price * quantity
+  }),
+  
+  // Eliminar item del carrito
+  removeFromCart: (orderId) => api.delete(`/orders/${orderId}`),
+  
+  // Limpiar carrito (eliminar todas las órdenes con status 'cart')
+  clearCart: () => api.delete('/orders?status=cart'),
+  
+  // Convertir item del carrito a orden de compra
+  checkout: (orderId, shippingAddress, paymentMethod) => api.put(`/orders/${orderId}`, {
+    status: 'pending',
+    shippingAddress,
+    paymentMethod
+  })
 };
 
 // API de órdenes
 export const orderAPI = {
-  create: (orderData) => api.post('/orders', orderData),
-  getAll: () => api.get('/orders'),
+  // Crear nueva orden
+  create: (orderData) => api.post('/orders', {
+    ...orderData,
+    status: 'pending' // Asegurar que la orden se crea como pendiente
+  }),
+  
+  // Obtener todas las órdenes (excluyendo items del carrito)
+  getAll: () => api.get('/orders?status=!cart'),
+  
+  // Obtener orden por ID
   getById: (id) => api.get(`/orders/${id}`),
-  updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
-  cancel: (id) => api.put(`/orders/${id}/cancel`),
+  
+  // Actualizar estado de la orden
+  updateStatus: (id, status) => api.put(`/orders/${id}`, { status }),
+  
+  // Cancelar orden
+  cancel: (id) => api.put(`/orders/${id}`, { status: 'cancelled' }),
+  
+  // Confirmar pago de la orden
+  confirmPayment: (id) => api.put(`/orders/${id}`, { status: 'paid' }),
+  
+  // Actualizar dirección de envío
+  updateShipping: (id, shippingAddress) => api.put(`/orders/${id}`, { shippingAddress })
 };
 
 export default api;

@@ -1,164 +1,258 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import React, { useState } from 'react';
 import {
   Container,
-  Paper,
   Typography,
-  TextField,
-  Button,
   Box,
-  Avatar,
   Grid,
-  CircularProgress,
-  Alert,
-  Snackbar,
+  Card,
+  CardContent,
+  Button,
+  TextField,
+  Avatar,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
 } from '@mui/material';
-import { updateUser, clearUpdateSuccess } from '../redux/slices/authSlice';
+import {
+  Person as PersonIcon,
+  Email as EmailIcon,
+  Phone as PhoneIcon,
+  LocationOn as LocationIcon,
+  ShoppingBag as ShoppingBagIcon,
+  Edit as EditIcon,
+} from '@mui/icons-material';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
-function Profile() {
-  const dispatch = useDispatch();
-  const { user, loading, error, updateSuccess } = useSelector((state) => state.auth);
-
+const Profile = () => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    newPassword: '',
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    address: user?.address || '',
   });
 
-  useEffect(() => {
-    if (user) {
-      setFormData((prev) => ({
-        ...prev,
-        name: user.name || '',
-        email: user.email || '',
-      }));
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (updateSuccess) {
-      setTimeout(() => {
-        dispatch(clearUpdateSuccess());
-      }, 3000);
-    }
-  }, [updateSuccess, dispatch]);
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const updateData = {
-      name: formData.name,
-      email: formData.email,
-    };
+    // Aquí implementaremos la actualización del perfil
+    setIsEditing(false);
+  };
 
-    if (formData.password && formData.newPassword) {
-      updateData.currentPassword = formData.password;
-      updateData.newPassword = formData.newPassword;
-    }
-
-    dispatch(updateUser(updateData));
+  const handleLogout = () => {
+    logout();
+    navigate('/');
   };
 
   if (!user) {
+    navigate('/auth?mode=login');
     return null;
   }
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Paper elevation={3} sx={{ p: 4 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
-          <Avatar
-            sx={{ width: 100, height: 100, mb: 2 }}
-            src={user.avatar}
-          >
-            {user.name?.charAt(0)}
-          </Avatar>
-          <Typography component="h1" variant="h5">
-            Perfil de Usuario
-          </Typography>
-        </Box>
-
-        <form onSubmit={handleSubmit}>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Nombre"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Cambiar Contraseña (opcional)
-              </Typography>
-              <TextField
-                fullWidth
-                label="Contraseña Actual"
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleChange}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                fullWidth
-                label="Nueva Contraseña"
-                name="newPassword"
-                type="password"
-                value={formData.newPassword}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                fullWidth
-                disabled={loading}
-                sx={{ mt: 2 }}
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Grid container spacing={4}>
+        {/* Perfil Principal */}
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <Avatar
+                sx={{
+                  width: 120,
+                  height: 120,
+                  margin: '0 auto 16px',
+                  bgcolor: 'primary.main',
+                }}
               >
-                {loading ? <CircularProgress size={24} /> : 'Actualizar Perfil'}
-              </Button>
-            </Grid>
-          </Grid>
-        </form>
+                {user.name?.charAt(0).toUpperCase()}
+              </Avatar>
+              <Typography variant="h5" gutterBottom>
+                {user.name}
+              </Typography>
+              <Typography color="textSecondary" gutterBottom>
+                {user.email}
+              </Typography>
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<EditIcon />}
+                  onClick={() => setIsEditing(true)}
+                  sx={{ mr: 1 }}
+                >
+                  Editar Perfil
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={handleLogout}
+                >
+                  Cerrar Sesión
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
 
-        <Snackbar
-          open={!!error || updateSuccess}
-          autoHideDuration={6000}
-          onClose={() => dispatch(clearUpdateSuccess())}
-        >
-          <Alert
-            severity={error ? 'error' : 'success'}
-            variant="filled"
-            sx={{ width: '100%' }}
-          >
-            {error || 'Perfil actualizado exitosamente'}
-          </Alert>
-        </Snackbar>
-      </Paper>
+          {/* Acciones Rápidas */}
+          <Card sx={{ mt: 2 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Acciones Rápidas
+              </Typography>
+              <List>
+                <ListItem button onClick={() => navigate('/cart')}>
+                  <ListItemIcon>
+                    <ShoppingBagIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="Mi Carrito" />
+                </ListItem>
+                <ListItem button onClick={() => navigate('/orders')}>
+                  <ListItemIcon>
+                    <ShoppingBagIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="Mis Pedidos" />
+                </ListItem>
+              </List>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Detalles del Perfil */}
+        <Grid item xs={12} md={8}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Información Personal
+              </Typography>
+              {isEditing ? (
+                <Box component="form" onSubmit={handleSubmit}>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Nombre"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Email"
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Teléfono"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Dirección"
+                        name="address"
+                        multiline
+                        rows={3}
+                        value={formData.address}
+                        onChange={handleInputChange}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        sx={{ mr: 1 }}
+                      >
+                        Guardar Cambios
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => setIsEditing(false)}
+                      >
+                        Cancelar
+                      </Button>
+                    </Grid>
+                  </Grid>
+                </Box>
+              ) : (
+                <List>
+                  <ListItem>
+                    <ListItemIcon>
+                      <PersonIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Nombre"
+                      secondary={user.name}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemIcon>
+                      <EmailIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Email"
+                      secondary={user.email}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemIcon>
+                      <PhoneIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Teléfono"
+                      secondary={user.phone || 'No especificado'}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemIcon>
+                      <LocationIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Dirección"
+                      secondary={user.address || 'No especificada'}
+                    />
+                  </ListItem>
+                </List>
+              )}
+
+              <Divider sx={{ my: 3 }} />
+
+              <Typography variant="h6" gutterBottom>
+                Historial de Compras
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<ShoppingBagIcon />}
+                onClick={() => navigate('/orders')}
+              >
+                Ver Mis Pedidos
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
     </Container>
   );
-}
+};
 
 export default Profile;

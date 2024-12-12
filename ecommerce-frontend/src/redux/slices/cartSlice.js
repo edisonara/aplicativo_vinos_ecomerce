@@ -16,10 +16,12 @@ export const fetchCart = createAsyncThunk(
 
 export const addToCart = createAsyncThunk(
     'cart/addItem',
-    async ({ productId, quantity }, { rejectWithValue }) => {
+    async ({ productId, quantity, price }, { rejectWithValue }) => {
         try {
-            const response = await cartAPI.addToCart(productId, quantity);
-            return response.data;
+            const response = await cartAPI.addToCart(productId, quantity, price);
+            // Después de agregar, obtener el carrito actualizado
+            const cartResponse = await cartAPI.getCart();
+            return cartResponse.data;
         } catch (error) {
             return rejectWithValue(error.response?.data || { message: 'Error al agregar al carrito' });
         }
@@ -28,9 +30,11 @@ export const addToCart = createAsyncThunk(
 
 export const updateCartItem = createAsyncThunk(
     'cart/updateItem',
-    async ({ itemId, quantity }, { rejectWithValue }) => {
+    async ({ orderId, itemId, quantity, price }, { rejectWithValue }) => {
         try {
-            const response = await cartAPI.updateCartItem(itemId, quantity);
+            await cartAPI.updateCartItem(orderId, itemId, quantity, price);
+            // Después de actualizar, obtener el carrito actualizado
+            const response = await cartAPI.getCart();
             return response.data;
         } catch (error) {
             return rejectWithValue(error.response?.data || { message: 'Error al actualizar el carrito' });
@@ -40,9 +44,11 @@ export const updateCartItem = createAsyncThunk(
 
 export const removeFromCart = createAsyncThunk(
     'cart/removeItem',
-    async (itemId, { rejectWithValue }) => {
+    async (orderId, { rejectWithValue }) => {
         try {
-            const response = await cartAPI.removeFromCart(itemId);
+            await cartAPI.removeFromCart(orderId);
+            // Después de eliminar, obtener el carrito actualizado
+            const response = await cartAPI.getCart();
             return response.data;
         } catch (error) {
             return rejectWithValue(error.response?.data || { message: 'Error al eliminar del carrito' });
@@ -50,11 +56,24 @@ export const removeFromCart = createAsyncThunk(
     }
 );
 
+export const checkoutCart = createAsyncThunk(
+    'cart/checkout',
+    async ({ orderId, shippingAddress, paymentMethod }, { rejectWithValue }) => {
+        try {
+            const response = await cartAPI.checkout(orderId, shippingAddress, paymentMethod);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data || { message: 'Error al procesar el checkout' });
+        }
+    }
+);
+
 const initialState = {
-    items: [],
+    items: [], // Array de órdenes con status 'cart'
     total: 0,
     loading: false,
-    error: null
+    error: null,
+    checkoutSuccess: false
 };
 
 const cartSlice = createSlice({
@@ -64,10 +83,21 @@ const cartSlice = createSlice({
         clearCart: (state) => {
             state.items = [];
             state.total = 0;
+            state.checkoutSuccess = false;
         },
         clearError: (state) => {
             state.error = null;
-        }
+        },
+        resetCheckoutStatus: (state) => {
+            state.checkoutSuccess = false;
+        },
+        updateCartQuantity: (state, action) => {
+            const { productId, quantity } = action.payload;
+            const item = state.items.find(item => item._id === productId);
+            if (item) {
+                item.quantity = quantity;
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -78,8 +108,8 @@ const cartSlice = createSlice({
             })
             .addCase(fetchCart.fulfilled, (state, action) => {
                 state.loading = false;
-                state.items = action.payload.items;
-                state.total = action.payload.total;
+                state.items = action.payload;
+                state.total = action.payload.reduce((sum, order) => sum + order.totalAmount, 0);
             })
             .addCase(fetchCart.rejected, (state, action) => {
                 state.loading = false;
@@ -92,8 +122,8 @@ const cartSlice = createSlice({
             })
             .addCase(addToCart.fulfilled, (state, action) => {
                 state.loading = false;
-                state.items = action.payload.items;
-                state.total = action.payload.total;
+                state.items = action.payload;
+                state.total = action.payload.reduce((sum, order) => sum + order.totalAmount, 0);
             })
             .addCase(addToCart.rejected, (state, action) => {
                 state.loading = false;
@@ -106,8 +136,8 @@ const cartSlice = createSlice({
             })
             .addCase(updateCartItem.fulfilled, (state, action) => {
                 state.loading = false;
-                state.items = action.payload.items;
-                state.total = action.payload.total;
+                state.items = action.payload;
+                state.total = action.payload.reduce((sum, order) => sum + order.totalAmount, 0);
             })
             .addCase(updateCartItem.rejected, (state, action) => {
                 state.loading = false;
@@ -120,15 +150,33 @@ const cartSlice = createSlice({
             })
             .addCase(removeFromCart.fulfilled, (state, action) => {
                 state.loading = false;
-                state.items = action.payload.items;
-                state.total = action.payload.total;
+                state.items = action.payload;
+                state.total = action.payload.reduce((sum, order) => sum + order.totalAmount, 0);
             })
             .addCase(removeFromCart.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload?.message || 'Error al eliminar del carrito';
+            })
+            // Checkout
+            .addCase(checkoutCart.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+                state.checkoutSuccess = false;
+            })
+            .addCase(checkoutCart.fulfilled, (state, action) => {
+                state.loading = false;
+                state.checkoutSuccess = true;
+                // Remover la orden que se convirtió en compra del carrito
+                state.items = state.items.filter(item => item._id !== action.payload._id);
+                state.total = state.items.reduce((sum, order) => sum + order.totalAmount, 0);
+            })
+            .addCase(checkoutCart.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload?.message || 'Error al procesar el checkout';
+                state.checkoutSuccess = false;
             });
     }
 });
 
-export const { clearCart, clearError } = cartSlice.actions;
+export const { clearCart, clearError, resetCheckoutStatus, updateCartQuantity } = cartSlice.actions;
 export default cartSlice.reducer;

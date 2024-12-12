@@ -3,16 +3,42 @@ import axios from 'axios';
 
 const AuthContext = createContext(null);
 
+// Configurar axios para usar el token en todas las peticiones
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Interceptor para manejar errores de autenticación
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      // Forzar recarga solo si no estamos en la página de autenticación
+      if (!window.location.pathname.includes('/auth')) {
+        window.location.href = '/auth?mode=login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      checkAuthStatus();
-    }
+    checkAuthStatus();
   }, []);
 
   const checkAuthStatus = async () => {
@@ -20,17 +46,14 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       if (!token) {
         setUser(null);
+        setLoading(false);
         return;
       }
 
-      const response = await axios.get('http://localhost:5000/api/auth/me', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      if (response.data.success) {
-        setUser(response.data.data);
+      const response = await axios.get('http://localhost:5000/api/users/me');
+      
+      if (response.data) {
+        setUser(response.data);
         setError(null);
       } else {
         localStorage.removeItem('token');
@@ -40,6 +63,8 @@ export const AuthProvider = ({ children }) => {
       console.error('Error checking auth status:', err);
       localStorage.removeItem('token');
       setUser(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,19 +73,20 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
+      const response = await axios.post('http://localhost:5000/api/users/login', {
         email,
         password
       });
 
-      if (response.data.success) {
+      if (response.data?.token) {
         localStorage.setItem('token', response.data.token);
-        setUser(response.data.data);
+        setUser(response.data.user);
         return response.data;
       } else {
-        throw new Error(response.data.message || 'Error en el inicio de sesión');
+        throw new Error('No se recibió token de autenticación');
       }
     } catch (err) {
+      console.error('Error en autenticación:', err);
       setError(err.response?.data?.message || 'Error en el inicio de sesión');
       throw err;
     } finally {
@@ -73,20 +99,21 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      const response = await axios.post('http://localhost:5000/api/auth/register', {
+      const response = await axios.post('http://localhost:5000/api/users/register', {
         name,
         email,
         password
       });
 
-      if (response.data.success) {
+      if (response.data?.token) {
         localStorage.setItem('token', response.data.token);
-        setUser(response.data.data);
+        setUser(response.data.user);
         return response.data;
       } else {
-        throw new Error(response.data.message || 'Error en el registro');
+        throw new Error('No se recibió token de registro');
       }
     } catch (err) {
+      console.error('Error en registro:', err);
       setError(err.response?.data?.message || 'Error en el registro');
       throw err;
     } finally {
@@ -97,20 +124,23 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    setError(null);
   };
 
-  const value = {
-    user,
-    loading,
-    error,
-    login,
-    register,
-    logout,
-    checkAuthStatus
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        login,
+        register,
+        logout,
+        checkAuthStatus
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
@@ -120,3 +150,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export default AuthContext;

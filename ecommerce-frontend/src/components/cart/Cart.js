@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
 import {
   Container,
@@ -12,82 +13,78 @@ import {
   Button,
   Box,
   Alert,
+  Grid,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { useAuth } from '../../context/AuthContext';
+import { fetchCart, updateCartItem, removeFromCart, clearCart } from '../../redux/slices/cartSlice';
+import { createOrder } from '../../redux/slices/orderSlice';
+import { useNavigate } from 'react-router-dom';
 
 const Cart = () => {
-  const [cart, setCart] = useState({ items: [], total: 0 });
-  const [error, setError] = useState('');
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { user } = useAuth();
-
-  const fetchCart = async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/api/cart', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      setCart(response.data.data);
-    } catch (err) {
-      setError('Error al cargar el carrito');
-    }
-  };
+  const { items, total, loading, error } = useSelector((state) => state.cart);
 
   useEffect(() => {
     if (user) {
-      fetchCart();
+      dispatch(fetchCart());
     }
-  }, [user]);
+  }, [dispatch, user]);
 
-  const updateQuantity = async (itemId, change) => {
+  const handleUpdateQuantity = async (itemId, quantity) => {
     try {
-      await axios.put(
-        `http://localhost:5000/api/cart/items/${itemId}`,
-        { quantity: change },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
-      );
-      fetchCart();
+      await dispatch(updateCartItem({ itemId, quantity })).unwrap();
     } catch (err) {
-      setError('Error al actualizar cantidad');
+      console.error('Error al actualizar cantidad:', err);
     }
   };
 
-  const removeItem = async (itemId) => {
+  const handleRemoveItem = async (itemId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/cart/items/${itemId}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      fetchCart();
+      await dispatch(removeFromCart(itemId)).unwrap();
     } catch (err) {
-      setError('Error al eliminar item');
+      console.error('Error al eliminar item:', err);
     }
   };
 
   const handleCheckout = async () => {
     try {
-      await axios.post(
-        'http://localhost:5000/api/orders',
-        { items: cart.items },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
-      );
-      setCart({ items: [], total: 0 });
+      const orderData = {
+        items: items.map(item => ({
+          product: item.product._id,
+          quantity: item.quantity,
+          price: item.product.price
+        })),
+        shippingAddress: {
+          street: user.address?.street || '',
+          city: user.address?.city || '',
+          state: user.address?.state || '',
+          zipCode: user.address?.zipCode || '',
+          country: user.address?.country || ''
+        },
+        totalAmount: total,
+        paymentMethod: 'credit_card' // Por defecto
+      };
+
+      await dispatch(createOrder(orderData)).unwrap();
+      await dispatch(clearCart());
+      navigate('/orders'); // Redirigir a la página de órdenes
     } catch (err) {
-      setError('Error al procesar el pedido');
+      console.error('Error al procesar el pedido:', err);
     }
   };
+
+  if (loading) {
+    return (
+      <Container maxWidth="md">
+        <Typography>Cargando carrito...</Typography>
+      </Container>
+    );
+  }
 
   if (!user) {
     return (
@@ -95,6 +92,24 @@ const Cart = () => {
         <Alert severity="info">
           Por favor, inicia sesión para ver tu carrito
         </Alert>
+      </Container>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <Container maxWidth="md">
+        <Alert severity="info">
+          Tu carrito está vacío
+        </Alert>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => navigate('/products')}
+          sx={{ mt: 2 }}
+        >
+          Ver Productos
+        </Button>
       </Container>
     );
   }
@@ -112,55 +127,81 @@ const Cart = () => {
           </Alert>
         )}
 
-        {cart.items.length === 0 ? (
-          <Typography>Tu carrito está vacío</Typography>
-        ) : (
-          <>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
             <List>
-              {cart.items.map((item) => (
-                <ListItem key={item._id}>
-                  <ListItemText
-                    primary={item.product.name}
-                    secondary={`Precio: $${item.product.price}`}
-                  />
-                  <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                    <IconButton
-                      onClick={() => updateQuantity(item._id, -1)}
-                      disabled={item.quantity <= 1}
-                    >
-                      <RemoveIcon />
-                    </IconButton>
-                    <Typography sx={{ mx: 2 }}>{item.quantity}</Typography>
-                    <IconButton onClick={() => updateQuantity(item._id, 1)}>
-                      <AddIcon />
-                    </IconButton>
-                  </Box>
-                  <ListItemSecondaryAction>
+              {items.map((item) => (
+                <ListItem key={item._id} divider>
+                  <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                    <Box sx={{ flexGrow: 1 }}>
+                      <ListItemText
+                        primary={item.product.name}
+                        secondary={`Precio: $${item.product.price}`}
+                      />
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+                      <IconButton
+                        onClick={() => handleUpdateQuantity(item._id, item.quantity - 1)}
+                        disabled={item.quantity <= 1}
+                      >
+                        <RemoveIcon />
+                      </IconButton>
+                      <Typography sx={{ mx: 2 }}>{item.quantity}</Typography>
+                      <IconButton 
+                        onClick={() => handleUpdateQuantity(item._id, item.quantity + 1)}
+                        disabled={item.quantity >= item.product.stock}
+                      >
+                        <AddIcon />
+                      </IconButton>
+                    </Box>
+                    <Typography variant="body1" sx={{ mr: 2 }}>
+                      ${(item.product.price * item.quantity).toFixed(2)}
+                    </Typography>
                     <IconButton
                       edge="end"
-                      onClick={() => removeItem(item._id)}
+                      onClick={() => handleRemoveItem(item._id)}
+                      color="error"
                     >
                       <DeleteIcon />
                     </IconButton>
-                  </ListItemSecondaryAction>
+                  </Box>
                 </ListItem>
               ))}
             </List>
-
-            <Box sx={{ mt: 3, textAlign: 'right' }}>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Box sx={{ position: 'sticky', top: 20 }}>
               <Typography variant="h6" gutterBottom>
-                Total: ${cart.total}
+                Resumen del Pedido
               </Typography>
+              <Box sx={{ my: 2 }}>
+                <Grid container justifyContent="space-between">
+                  <Typography>Subtotal:</Typography>
+                  <Typography>${total.toFixed(2)}</Typography>
+                </Grid>
+              </Box>
               <Button
                 variant="contained"
                 color="primary"
+                fullWidth
                 onClick={handleCheckout}
+                disabled={items.length === 0}
+                sx={{ mt: 2 }}
               >
                 Proceder al Pago
               </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                fullWidth
+                onClick={() => dispatch(clearCart())}
+                sx={{ mt: 2 }}
+              >
+                Vaciar Carrito
+              </Button>
             </Box>
-          </>
-        )}
+          </Grid>
+        </Grid>
       </Paper>
     </Container>
   );

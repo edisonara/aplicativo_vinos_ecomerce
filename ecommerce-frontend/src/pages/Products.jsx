@@ -1,213 +1,269 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
+import axios from 'axios';
 import {
-  Box,
+  Container,
   Grid,
-  Card,
-  CardMedia,
-  CardContent,
   Typography,
-  Button,
+  Box,
+  CircularProgress,
+  Alert,
   TextField,
-  Select,
-  MenuItem,
+  InputAdornment,
+  IconButton,
+  Drawer,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
+  Chip,
   FormControl,
   InputLabel,
-  Slider,
-  IconButton,
-  Container,
-  Rating,
-  CardActionArea,
+  Select,
+  MenuItem,
 } from '@mui/material';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import { useDispatch, useSelector } from 'react-redux';
-import { addToCart } from '../redux/cartSlice';
+import SearchIcon from '@mui/icons-material/Search';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ProductCard from '../components/ProductCard';
 
-const Products = () => {
-  const navigate = useNavigate();
+function Products() {
+  const { user } = useSelector(state => state.auth);
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [category, setCategory] = useState('');
-  const [sortBy, setSortBy] = useState('');
-  const [priceRange, setPriceRange] = useState([0, 1000]);
-  const dispatch = useDispatch();
+  const [filters, setFilters] = useState({
+    category: 'all',
+    minPrice: '',
+    maxPrice: '',
+    sortBy: 'name'
+  });
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
-    // Aquí irá la llamada a la API para obtener los productos
-    setProducts([
-      {
-        id: 1,
-        name: 'Vino Tinto Reserva',
-        price: 25.99,
-        image: '/images/vino-tinto.jpg',
-        category: 'vinos',
-        description: 'Vino tinto reserva de alta calidad',
-        stock: 50,
-        rating: 4.5,
-        reviews: [
-          { id: 1, rating: 5, comment: 'Excelente vino', user: 'Juan' },
-          { id: 2, rating: 4, comment: 'Muy bueno', user: 'María' }
-        ]
-      },
-      {
-        id: 2,
-        name: 'Vino añejado',
-        price: 29.99,
-        image: '/images/vino-añejado.jpg',
-        category: 'vinos',
-        description: 'Estén es del vino antiguo',
-        stock: 100,
-        rating: 4.0,
-        reviews: [
-          { id: 3, rating: 4, comment: 'Gran sabor', user: 'Pedro' }
-        ]
-      },
-    ]);
-  }, []);
+    fetchProducts();
+  }, [filters]);
 
-  const handleAddToCart = (product) => {
-    dispatch(addToCart(product));
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      let url = 'http://localhost:5000/api/products';
+      let params = {};
+
+      // Aplicar filtros
+      if (filters.category !== 'all') {
+        params.category = filters.category;
+      }
+      if (filters.minPrice) {
+        params.minPrice = filters.minPrice;
+      }
+      if (filters.maxPrice) {
+        params.maxPrice = filters.maxPrice;
+      }
+      if (filters.sortBy) {
+        params.sort = filters.sortBy;
+      }
+
+      const response = await axios.get(url, { params });
+      const allProducts = Array.isArray(response.data) ? response.data : 
+                         response.data.products ? response.data.products : [];
+      setProducts(allProducts);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setError('Error al cargar los productos');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleProductClick = (productId) => {
-    navigate(`/product/${productId}`);
+  const handleSearch = (event) => {
+    setSearchTerm(event.target.value);
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = category === '' || product.category === category;
-    const matchesPrice = product.price >= priceRange[0] && product.price <= priceRange[1];
-    return matchesSearch && matchesCategory && matchesPrice;
-  });
+  const handleFilterChange = (event) => {
+    setFilters({
+      ...filters,
+      [event.target.name]: event.target.value
+    });
+  };
+
+  const filteredProducts = products.filter(product => 
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const categories = [
+    'all',
+    'Vinos',
+    'Cervezas',
+    'Licores',
+    'Whisky',
+    'Ron',
+    'Vodka',
+    'Tequila'
+  ];
+
+  const sortOptions = [
+    { value: 'name', label: 'Nombre' },
+    { value: 'price', label: 'Precio: Menor a Mayor' },
+    { value: '-price', label: 'Precio: Mayor a Menor' },
+    { value: '-rating', label: 'Mejor Valorados' }
+  ];
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* Barra de búsqueda y filtros */}
       <Box sx={{ mb: 4 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} md={6}>
             <TextField
               fullWidth
-              label="Buscar productos"
               variant="outlined"
+              placeholder="Buscar productos..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearch}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
             />
           </Grid>
-          <Grid item xs={12} sm={3}>
-            <FormControl fullWidth>
-              <InputLabel>Categoría</InputLabel>
-              <Select
-                value={category}
-                label="Categoría"
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <MenuItem value="">Todos</MenuItem>
-                <MenuItem value="vinos">Vinos</MenuItem>
-                <MenuItem value="licores">Licores</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <FormControl fullWidth>
-              <InputLabel>Ordenar por</InputLabel>
-              <Select
-                value={sortBy}
-                label="Ordenar por"
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <MenuItem value="price_asc">Precio: Menor a Mayor</MenuItem>
-                <MenuItem value="price_desc">Precio: Mayor a Menor</MenuItem>
-                <MenuItem value="name">Nombre</MenuItem>
-                <MenuItem value="rating">Mejor Valorados</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <Typography gutterBottom>Rango de Precio</Typography>
-            <Slider
-              value={priceRange}
-              onChange={(e, newValue) => setPriceRange(newValue)}
-              valueLabelDisplay="auto"
-              min={0}
-              max={1000}
-            />
+          <Grid item xs={12} md={6}>
+            <Box display="flex" justifyContent="flex-end">
+              <IconButton onClick={() => setDrawerOpen(true)}>
+                <FilterListIcon />
+              </IconButton>
+            </Box>
           </Grid>
         </Grid>
       </Box>
 
-      <Grid container spacing={3}>
-        {filteredProducts.map((product) => (
-          <Grid item key={product.id} xs={12} sm={6} md={4}>
-            <Card 
-              sx={{ 
-                height: '100%',
-                display: 'flex', 
-                flexDirection: 'column',
-                transition: 'transform 0.2s ease-in-out',
-                '&:hover': {
-                  transform: 'scale(1.02)',
-                  boxShadow: 6,
-                }
-              }}
-            >
-              <CardActionArea onClick={() => handleProductClick(product.id)}>
-                <CardMedia
-                  component="img"
-                  height="280"
-                  image={product.image}
-                  alt={product.name}
-                  sx={{ objectFit: 'cover', p: 2 }}
-                />
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography gutterBottom variant="h5" component="h2">
-                    {product.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {product.description}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <Rating value={product.rating} precision={0.5} readOnly />
-                    <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                      ({product.reviews?.length || 0} reseñas)
-                    </Typography>
-                  </Box>
-                  <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
-                    ${product.price}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Stock: {product.stock}
-                  </Typography>
-                </CardContent>
-              </CardActionArea>
-              <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', mt: 'auto' }}>
-                <Button
-                  variant="contained"
-                  startIcon={<ShoppingCartIcon />}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAddToCart(product);
-                  }}
-                  disabled={!product.stock}
+      {/* Drawer de Filtros */}
+      <Drawer
+        anchor="right"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      >
+        <Box sx={{ width: 250, p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Filtros
+          </Typography>
+          <List>
+            <ListItem>
+              <FormControl fullWidth>
+                <InputLabel>Categoría</InputLabel>
+                <Select
+                  value={filters.category}
+                  name="category"
+                  onChange={handleFilterChange}
                 >
-                  {product.stock ? 'Agregar' : 'Agotado'}
-                </Button>
-                <IconButton 
-                  color="primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Manejar favoritos
-                  }}
+                  {categories.map((category) => (
+                    <MenuItem key={category} value={category}>
+                      {category === 'all' ? 'Todas las categorías' : category}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </ListItem>
+            <ListItem>
+              <FormControl fullWidth>
+                <InputLabel>Ordenar por</InputLabel>
+                <Select
+                  value={filters.sortBy}
+                  name="sortBy"
+                  onChange={handleFilterChange}
                 >
-                  <FavoriteIcon />
-                </IconButton>
-              </Box>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+                  {sortOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </ListItem>
+            <ListItem>
+              <TextField
+                fullWidth
+                type="number"
+                label="Precio mínimo"
+                name="minPrice"
+                value={filters.minPrice}
+                onChange={handleFilterChange}
+              />
+            </ListItem>
+            <ListItem>
+              <TextField
+                fullWidth
+                type="number"
+                label="Precio máximo"
+                name="maxPrice"
+                value={filters.maxPrice}
+                onChange={handleFilterChange}
+              />
+            </ListItem>
+          </List>
+        </Box>
+      </Drawer>
+
+      {/* Filtros activos */}
+      {(filters.category !== 'all' || filters.minPrice || filters.maxPrice) && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle1" gutterBottom>
+            Filtros activos:
+          </Typography>
+          <Box display="flex" gap={1} flexWrap="wrap">
+            {filters.category !== 'all' && (
+              <Chip
+                label={`Categoría: ${filters.category}`}
+                onDelete={() => handleFilterChange({ target: { name: 'category', value: 'all' } })}
+              />
+            )}
+            {filters.minPrice && (
+              <Chip
+                label={`Precio mín: $${filters.minPrice}`}
+                onDelete={() => handleFilterChange({ target: { name: 'minPrice', value: '' } })}
+              />
+            )}
+            {filters.maxPrice && (
+              <Chip
+                label={`Precio máx: $${filters.maxPrice}`}
+                onDelete={() => handleFilterChange({ target: { name: 'maxPrice', value: '' } })}
+              />
+            )}
+          </Box>
+        </Box>
+      )}
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 4 }}>
+          {error}
+        </Alert>
+      )}
+
+      {loading ? (
+        <Box display="flex" justifyContent="center" my={4}>
+          <CircularProgress />
+        </Box>
+      ) : filteredProducts.length > 0 ? (
+        <Grid container spacing={4}>
+          {filteredProducts.map((product) => (
+            <Grid item key={product._id} xs={12} sm={6} md={4} lg={3}>
+              <ProductCard product={product} />
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <Alert severity="info">
+          No se encontraron productos que coincidan con tu búsqueda.
+        </Alert>
+      )}
     </Container>
   );
-};
+}
 
 export default Products;

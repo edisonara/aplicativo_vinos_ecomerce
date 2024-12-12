@@ -1,218 +1,258 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import axios from 'axios';
 import {
   Container,
   Grid,
-  Paper,
   Typography,
-  Button,
   Box,
-  Rating,
+  Button,
   TextField,
-  Avatar,
+  Rating,
   Divider,
-  IconButton,
+  Paper,
+  CircularProgress,
+  Alert,
+  Snackbar,
   Card,
   CardContent,
 } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import { addToCart } from '../redux/cartSlice';
+import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
+import { addToCart } from '../redux/slices/cartSlice';
 
-const ProductDetail = () => {
+function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { user } = useSelector(state => state.auth);
+
   const [product, setProduct] = useState(null);
-  const [newReview, setNewReview] = useState({ rating: 0, comment: '' });
+  const [quantity, setQuantity] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
-    // Aquí irá la llamada a la API para obtener el producto
-    // Por ahora usamos datos de ejemplo
-    setProduct({
-      id: 1,
-      name: 'Vino Tinto Reserva',
-      price: 25.99,
-      image: '/images/vino-tinto.jpg',
-      category: 'vinos',
-      description: 'Vino tinto reserva de alta calidad, añejado en barricas de roble francés por 18 meses. Notas de frutos rojos, vainilla y especias.',
-      stock: 50,
-      rating: 4.5,
-      details: {
-        origen: 'Valle de Napa, California',
-        añejamiento: '18 meses en barrica',
-        alcohol: '13.5%',
-        maridaje: 'Carnes rojas, quesos maduros',
-        temperatura: '16-18°C'
-      },
-      reviews: [
-        { id: 1, rating: 5, comment: 'Excelente vino, muy equilibrado', user: 'Juan', date: '2023-12-01' },
-        { id: 2, rating: 4, comment: 'Muy bueno, gran relación calidad-precio', user: 'María', date: '2023-11-28' }
-      ]
-    });
+    fetchProduct();
   }, [id]);
 
-  const handleAddToCart = () => {
-    dispatch(addToCart(product));
+  const fetchProduct = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await axios.get(`http://localhost:5000/api/products/${id}`);
+      setProduct(response.data);
+    } catch (err) {
+      console.error('Error fetching product:', err);
+      setError('Error al cargar el producto');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmitReview = (e) => {
-    e.preventDefault();
-    // Aquí irá la lógica para enviar la reseña al backend
-    console.log('Nueva reseña:', newReview);
+  const handleQuantityChange = (event) => {
+    const value = parseInt(event.target.value);
+    if (value > 0 && value <= (product?.stock || 0)) {
+      setQuantity(value);
+    }
   };
+
+  const handleAddToCart = async () => {
+    if (!user) {
+      navigate('/auth?mode=login');
+      return;
+    }
+
+    try {
+      await dispatch(addToCart({ 
+        productId: product._id, 
+        quantity 
+      })).unwrap();
+      setSuccessMessage('Producto agregado al carrito');
+    } catch (err) {
+      setError(err.message || 'Error al agregar al carrito');
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!user) {
+      navigate('/auth?mode=login');
+      return;
+    }
+
+    try {
+      await dispatch(addToCart({ 
+        productId: product._id, 
+        quantity 
+      })).unwrap();
+      navigate('/cart');
+    } catch (err) {
+      setError(err.message || 'Error al procesar la compra');
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
+        <Alert severity="error">{error}</Alert>
+      </Container>
+    );
+  }
 
   if (!product) {
-    return null;
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
+        <Alert severity="info">Producto no encontrado</Alert>
+      </Container>
+    );
   }
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Button
-        startIcon={<ArrowBackIcon />}
-        onClick={() => navigate(-1)}
-        sx={{ mb: 3 }}
-      >
-        Volver
-      </Button>
-
       <Grid container spacing={4}>
-        {/* Imagen y detalles principales */}
+        {/* Imagen del Producto */}
         <Grid item xs={12} md={6}>
-          <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
-            <img
-              src={product.image}
-              alt={product.name}
-              style={{
+          <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
+            <Box
+              component="img"
+              sx={{
                 width: '100%',
                 height: 'auto',
-                maxHeight: '500px',
-                objectFit: 'contain'
+                maxHeight: 500,
+                objectFit: 'contain',
               }}
+              src={product.imageUrl || 'https://via.placeholder.com/400'}
+              alt={product.name}
             />
           </Paper>
         </Grid>
 
-        {/* Información del producto */}
+        {/* Detalles del Producto */}
         <Grid item xs={12} md={6}>
-          <Paper elevation={3} sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <Typography variant="h4" gutterBottom>
-                {product.name}
-              </Typography>
-              <IconButton color="primary">
-                <FavoriteIcon />
-              </IconButton>
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Rating value={product.rating} precision={0.5} readOnly />
-              <Typography variant="body2" sx={{ ml: 1 }}>
-                ({product.reviews.length} reseñas)
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              {product.name}
+            </Typography>
+            
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+              <Rating value={product.rating || 0} precision={0.5} readOnly />
+              <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                ({product.reviews?.length || 0} reseñas)
               </Typography>
             </Box>
 
             <Typography variant="h5" color="primary" gutterBottom>
-              ${product.price}
+              ${(product.price || 0).toFixed(2)}
             </Typography>
 
-            <Typography variant="body1" paragraph>
+            <Typography variant="body1" sx={{ mb: 3 }}>
               {product.description}
             </Typography>
 
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Detalles del Producto
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Stock disponible: {product.stock || 0}
               </Typography>
-              {Object.entries(product.details).map(([key, value]) => (
-                <Typography key={key} variant="body2" sx={{ mb: 1 }}>
-                  <strong>{key.charAt(0).toUpperCase() + key.slice(1)}:</strong> {value}
-                </Typography>
-              ))}
+              <TextField
+                type="number"
+                label="Cantidad"
+                value={quantity}
+                onChange={handleQuantityChange}
+                inputProps={{ min: 1, max: product.stock }}
+                sx={{ width: 100 }}
+              />
             </Box>
 
-            <Box sx={{ mt: 3 }}>
+            <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
               <Button
                 variant="contained"
-                size="large"
                 startIcon={<AddShoppingCartIcon />}
                 onClick={handleAddToCart}
                 disabled={!product.stock}
                 fullWidth
               >
-                {product.stock ? 'Agregar al Carrito' : 'Agotado'}
+                Agregar al Carrito
               </Button>
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Sección de Reseñas */}
-        <Grid item xs={12}>
-          <Paper elevation={3} sx={{ p: 3 }}>
-            <Typography variant="h5" gutterBottom>
-              Reseñas de Clientes
-            </Typography>
-
-            {/* Formulario para nueva reseña */}
-            <Box component="form" onSubmit={handleSubmitReview} sx={{ mb: 4 }}>
-              <Typography variant="h6" gutterBottom>
-                Escribir una Reseña
-              </Typography>
-              <Box sx={{ mb: 2 }}>
-                <Typography component="legend">Calificación</Typography>
-                <Rating
-                  value={newReview.rating}
-                  onChange={(_, value) => setNewReview(prev => ({ ...prev, rating: value }))}
-                />
-              </Box>
-              <TextField
+              <Button
+                variant="contained"
+                color="secondary"
+                startIcon={<ShoppingBagIcon />}
+                onClick={handleBuyNow}
+                disabled={!product.stock}
                 fullWidth
-                multiline
-                rows={4}
-                variant="outlined"
-                placeholder="Escribe tu reseña aquí..."
-                value={newReview.comment}
-                onChange={(e) => setNewReview(prev => ({ ...prev, comment: e.target.value }))}
-                sx={{ mb: 2 }}
-              />
-              <Button variant="contained" type="submit">
-                Enviar Reseña
+              >
+                Comprar Ahora
               </Button>
             </Box>
+          </Box>
 
-            <Divider sx={{ my: 3 }} />
-
-            {/* Lista de reseñas */}
-            <Grid container spacing={2}>
-              {product.reviews.map((review) => (
-                <Grid item xs={12} key={review.id}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <Avatar sx={{ mr: 2 }}>{review.user[0]}</Avatar>
-                        <Box>
-                          <Typography variant="subtitle1">{review.user}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {review.date}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <Rating value={review.rating} readOnly size="small" />
-                      <Typography variant="body2" sx={{ mt: 1 }}>
-                        {review.comment}
-                      </Typography>
-                    </CardContent>
-                  </Card>
+          {/* Características del Producto */}
+          <Card sx={{ mt: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Características
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Categoría
+                  </Typography>
+                  <Typography>{product.category}</Typography>
                 </Grid>
-              ))}
-            </Grid>
-          </Paper>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Marca
+                  </Typography>
+                  <Typography>{product.brand || 'No especificada'}</Typography>
+                </Grid>
+                {product.alcohol && (
+                  <Grid item xs={6}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Contenido de Alcohol
+                    </Typography>
+                    <Typography>{product.alcohol}%</Typography>
+                  </Grid>
+                )}
+                {product.volume && (
+                  <Grid item xs={6}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Volumen
+                    </Typography>
+                    <Typography>{product.volume}ml</Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
+
+      {/* Snackbar para mensajes de éxito */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={3000}
+        onClose={() => setSuccessMessage('')}
+      >
+        <Alert 
+          onClose={() => setSuccessMessage('')} 
+          severity="success"
+          sx={{ width: '100%' }}
+        >
+          {successMessage}
+        </Alert>
+      </Snackbar>
     </Container>
   );
-};
+}
 
 export default ProductDetail;

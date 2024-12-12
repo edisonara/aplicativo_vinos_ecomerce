@@ -1,218 +1,250 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import axios from 'axios';
 import {
   Container,
-  Typography,
-  Box,
-  Button,
   Grid,
-  Paper,
+  Typography,
+  Button,
+  Box,
   Card,
   CardContent,
-  CardMedia,
+  CircularProgress,
+  Alert,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import SecurityIcon from '@mui/icons-material/Security';
 import LocalBarIcon from '@mui/icons-material/LocalBar';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import ProductCard from '../components/ProductCard';
 
-const HeroSection = styled(Box)(({ theme }) => ({
-  background: 'linear-gradient(45deg, #1a237e 30%, #283593 90%)',
-  color: 'white',
-  padding: theme.spacing(15, 0),
-  textAlign: 'center',
-  position: 'relative',
-  overflow: 'hidden',
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundImage: 'url(/hero-bg.jpg)',
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    opacity: 0.2,
-  }
-}));
-
-const FeatureCard = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(3),
-  textAlign: 'center',
-  height: '100%',
-  transition: 'transform 0.3s ease-in-out',
-  '&:hover': {
-    transform: 'translateY(-10px)',
-  },
-}));
-
-const CategoryCard = styled(Card)(({ theme }) => ({
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  transition: 'transform 0.3s ease-in-out',
-  '&:hover': {
-    transform: 'scale(1.05)',
-  },
-}));
-
-const StyledIcon = styled(Box)(({ theme }) => ({
-  fontSize: '3rem',
-  marginBottom: theme.spacing(2),
-  color: theme.palette.primary.main,
-}));
+const categories = [
+  'Todos',
+  'Vinos',
+  'Cervezas',
+  'Licores',
+  'Whisky',
+  'Ron',
+  'Vodka',
+  'Tequila'
+];
 
 function Home() {
   const navigate = useNavigate();
+  const { user } = useSelector(state => state.auth);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [featuredProducts, setFeaturedProducts] = useState([]);
 
-  const features = [
-    {
-      icon: <ShoppingCartIcon sx={{ fontSize: 40 }} />,
-      title: 'Compra Fácil',
-      description: 'Proceso de compra simple y seguro'
-    },
-    {
-      icon: <LocalShippingIcon sx={{ fontSize: 40 }} />,
-      title: 'Envío Rápido',
-      description: 'Entrega a todo el país'
-    },
-    {
-      icon: <SecurityIcon sx={{ fontSize: 40 }} />,
-      title: 'Compra Segura',
-      description: 'Transacciones 100% seguras'
-    },
-  ];
+  useEffect(() => {
+    fetchProducts();
+  }, [selectedCategory]);
 
-  const categories = [
-    {
-      title: 'Vinos',
-      image: '/vinos.jpg',
-      description: 'Descubre nuestra selección de vinos premium'
-    },
-    {
-      title: 'Cervezas',
-      image: '/cervezas.jpg',
-      description: 'Las mejores cervezas artesanales e importadas'
-    },
-    {
-      title: 'Licores',
-      image: '/licores.jpg',
-      description: 'Amplia variedad de licores y destilados'
-    },
-    {
-      title: 'Destilados',
-      image: '/destilados.jpg',
-      description: 'Los mejores whiskies, rones y más'
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const params = selectedCategory !== 'Todos' ? { category: selectedCategory } : {};
+      const response = await axios.get('http://localhost:5000/api/products', { params });
+      
+      // Asegurarnos de que response.data sea un array
+      const allProducts = Array.isArray(response.data) ? response.data : 
+                         response.data.products ? response.data.products : [];
+      
+      setProducts(allProducts);
+      
+      // Obtener productos destacados (los 4 más vendidos o con mejor rating)
+      const featured = [...allProducts]
+        .sort((a, b) => ((b.rating || 0) - (a.rating || 0)))
+        .slice(0, 4);
+      
+      setFeaturedProducts(featured);
+      
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setError('Error al cargar los productos');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const handleCategoryChange = (event, newValue) => {
+    setSelectedCategory(newValue);
+  };
 
   return (
-    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <HeroSection>
+    <Box>
+      {/* Hero Section */}
+      <Box
+        sx={{
+          bgcolor: 'primary.main',
+          color: 'white',
+          py: 8,
+          mb: 6,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
         <Container maxWidth="lg">
-          <Typography
-            variant="h2"
-            component="h1"
-            gutterBottom
-            sx={{
-              fontWeight: 'bold',
-              textShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-              mb: 4
-            }}
-          >
-            Bienvenido a Nuestra Tienda de Licores
-          </Typography>
-          <Typography
-            variant="h5"
-            sx={{ mb: 4 }}
-          >
-            Descubre nuestra exclusiva selección de bebidas premium
-          </Typography>
-          <Button
-            variant="contained"
-            size="large"
-            onClick={() => navigate('/products')}
-            sx={{
-              backgroundColor: 'white',
-              color: 'primary.main',
-              '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.9)',
-              },
-              px: 4,
-              py: 2,
-              borderRadius: 2,
-            }}
-          >
-            Ver Catálogo
-          </Button>
-        </Container>
-      </HeroSection>
-
-      <Container maxWidth="lg" sx={{ my: 8 }}>
-        <Typography
-          variant="h3"
-          component="h2"
-          align="center"
-          gutterBottom
-          sx={{ mb: 6, fontWeight: 'bold' }}
-        >
-          Nuestras Categorías
-        </Typography>
-        <Grid container spacing={4}>
-          {categories.map((category, index) => (
-            <Grid item xs={12} sm={6} md={3} key={index}>
-              <CategoryCard>
-                <CardMedia
-                  component="img"
-                  height="200"
-                  image={category.image}
-                  alt={category.title}
-                />
-                <CardContent>
-                  <Typography variant="h6" component="h3" gutterBottom>
-                    {category.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {category.description}
-                  </Typography>
-                </CardContent>
-              </CategoryCard>
+          <Grid container spacing={4} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <Typography
+                component="h1"
+                variant="h2"
+                color="inherit"
+                gutterBottom
+                sx={{ fontWeight: 'bold' }}
+              >
+                Licorería Online
+              </Typography>
+              <Typography variant="h5" color="inherit" paragraph>
+                Descubre nuestra selección premium de licores y bebidas
+              </Typography>
+              <Button
+                variant="contained"
+                color="secondary"
+                size="large"
+                onClick={() => navigate('/products')}
+                sx={{ mt: 2 }}
+              >
+                Ver Productos
+              </Button>
             </Grid>
-          ))}
-        </Grid>
-      </Container>
-
-      <Box sx={{ bgcolor: 'grey.100', py: 8 }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            component="h2"
-            align="center"
-            gutterBottom
-            sx={{ mb: 6, fontWeight: 'bold' }}
-          >
-            ¿Por qué elegirnos?
-          </Typography>
-          <Grid container spacing={4}>
-            {features.map((feature, index) => (
-              <Grid item xs={12} md={4} key={index}>
-                <FeatureCard elevation={3}>
-                  <StyledIcon>{feature.icon}</StyledIcon>
-                  <Typography variant="h5" component="h3" gutterBottom>
-                    {feature.title}
-                  </Typography>
-                  <Typography color="text.secondary">
-                    {feature.description}
-                  </Typography>
-                </FeatureCard>
-              </Grid>
-            ))}
+            <Grid item xs={12} md={6}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  height: '100%',
+                }}
+              >
+                <LocalBarIcon sx={{ fontSize: 200, opacity: 0.8 }} />
+              </Box>
+            </Grid>
           </Grid>
         </Container>
       </Box>
+
+      <Container maxWidth="lg">
+        {/* Categorías */}
+        <Box sx={{ mb: 4 }}>
+          <Tabs
+            value={selectedCategory}
+            onChange={handleCategoryChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            aria-label="categorías de productos"
+          >
+            {categories.map((category) => (
+              <Tab
+                key={category}
+                label={category}
+                value={category}
+                sx={{ fontWeight: 'bold' }}
+              />
+            ))}
+          </Tabs>
+        </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 4 }}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Productos Destacados */}
+        {featuredProducts.length > 0 && (
+          <Box sx={{ mb: 6 }}>
+            <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
+              Productos Destacados
+            </Typography>
+            {loading ? (
+              <Box display="flex" justifyContent="center">
+                <CircularProgress />
+              </Box>
+            ) : (
+              <Grid container spacing={4}>
+                {featuredProducts.map((product) => (
+                  <Grid item key={product._id} xs={12} sm={6} md={3}>
+                    <ProductCard product={product} />
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </Box>
+        )}
+
+        {/* Lista de Productos */}
+        <Box sx={{ mb: 6 }}>
+          <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
+            {selectedCategory === 'Todos' ? 'Todos los Productos' : selectedCategory}
+          </Typography>
+          {loading ? (
+            <Box display="flex" justifyContent="center">
+              <CircularProgress />
+            </Box>
+          ) : products.length > 0 ? (
+            <Grid container spacing={4}>
+              {products.map((product) => (
+                <Grid item key={product._id} xs={12} sm={6} md={3}>
+                  <ProductCard product={product} />
+                </Grid>
+              ))}
+            </Grid>
+          ) : (
+            <Alert severity="info">
+              No hay productos disponibles en esta categoría.
+            </Alert>
+          )}
+        </Box>
+
+        {/* Características */}
+        <Box sx={{ py: 8 }}>
+          <Grid container spacing={4}>
+            <Grid item xs={12} md={4}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Typography variant="h5" component="h2" gutterBottom>
+                    Envío Rápido
+                  </Typography>
+                  <Typography>
+                    Entrega a domicilio en menos de 24 horas en la ciudad.
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Typography variant="h5" component="h2" gutterBottom>
+                    Productos Premium
+                  </Typography>
+                  <Typography>
+                    Selección de las mejores marcas nacionales e internacionales.
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Typography variant="h5" component="h2" gutterBottom>
+                    Pago Seguro
+                  </Typography>
+                  <Typography>
+                    Múltiples métodos de pago con la mayor seguridad.
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Box>
+      </Container>
     </Box>
   );
 }
