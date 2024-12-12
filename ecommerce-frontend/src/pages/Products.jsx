@@ -1,152 +1,213 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Container,
+  Box,
   Grid,
   Card,
   CardMedia,
   CardContent,
   Typography,
-  CardActions,
   Button,
-  Box,
-  CircularProgress,
-  Alert,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Slider,
+  IconButton,
+  Container,
   Rating,
-  Pagination,
+  CardActionArea,
 } from '@mui/material';
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchProducts } from '../redux/slices/productSlice';
-import { addToCart } from '../redux/slices/cartSlice';
-import { useNavigate } from 'react-router-dom';
-import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
+import { addToCart } from '../redux/cartSlice';
 
-function Products() {
-  const dispatch = useDispatch();
+const Products = () => {
   const navigate = useNavigate();
-  const { products, loading, error, pagination } = useSelector((state) => state.products);
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const [products, setProducts] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [category, setCategory] = useState('');
+  const [sortBy, setSortBy] = useState('');
+  const [priceRange, setPriceRange] = useState([0, 1000]);
+  const dispatch = useDispatch();
 
   useEffect(() => {
-    dispatch(fetchProducts());
-  }, [dispatch]);
+    // Aquí irá la llamada a la API para obtener los productos
+    setProducts([
+      {
+        id: 1,
+        name: 'Vino Tinto Reserva',
+        price: 25.99,
+        image: '/images/vino-tinto.jpg',
+        category: 'vinos',
+        description: 'Vino tinto reserva de alta calidad',
+        stock: 50,
+        rating: 4.5,
+        reviews: [
+          { id: 1, rating: 5, comment: 'Excelente vino', user: 'Juan' },
+          { id: 2, rating: 4, comment: 'Muy bueno', user: 'María' }
+        ]
+      },
+      {
+        id: 2,
+        name: 'Vino añejado',
+        price: 29.99,
+        image: '/images/vino-añejado.jpg',
+        category: 'vinos',
+        description: 'Estén es del vino antiguo',
+        stock: 100,
+        rating: 4.0,
+        reviews: [
+          { id: 3, rating: 4, comment: 'Gran sabor', user: 'Pedro' }
+        ]
+      },
+    ]);
+  }, []);
 
-  const handleAddToCart = (productId) => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-    dispatch(addToCart({ productId, quantity: 1 }));
+  const handleAddToCart = (product) => {
+    dispatch(addToCart(product));
   };
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const handleProductClick = (productId) => {
+    navigate(`/product/${productId}`);
+  };
 
-  if (error) {
-    return (
-      <Container>
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {error}
-        </Alert>
-      </Container>
-    );
-  }
-
-  if (!Array.isArray(products) || products.length === 0) {
-    return (
-      <Container sx={{ py: 8 }}>
-        <Box textAlign="center">
-          <Typography variant="h5" color="text.secondary" gutterBottom>
-            No hay productos disponibles
-          </Typography>
-        </Box>
-      </Container>
-    );
-  }
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = category === '' || product.category === category;
+    const matchesPrice = product.price >= priceRange[0] && product.price <= priceRange[1];
+    return matchesSearch && matchesCategory && matchesPrice;
+  });
 
   return (
-    <Container sx={{ py: 8 }} maxWidth="lg">
-      <Grid container spacing={4}>
-        {products.map((product) => (
-          <Grid item key={product._id} xs={12} sm={6} md={4}>
-            <Card
-              sx={{
+    <Container maxWidth="lg" sx={{ mt: 4 }}>
+      <Box sx={{ mb: 4 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={3}>
+            <TextField
+              fullWidth
+              label="Buscar productos"
+              variant="outlined"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <FormControl fullWidth>
+              <InputLabel>Categoría</InputLabel>
+              <Select
+                value={category}
+                label="Categoría"
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                <MenuItem value="vinos">Vinos</MenuItem>
+                <MenuItem value="licores">Licores</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <FormControl fullWidth>
+              <InputLabel>Ordenar por</InputLabel>
+              <Select
+                value={sortBy}
+                label="Ordenar por"
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <MenuItem value="price_asc">Precio: Menor a Mayor</MenuItem>
+                <MenuItem value="price_desc">Precio: Mayor a Menor</MenuItem>
+                <MenuItem value="name">Nombre</MenuItem>
+                <MenuItem value="rating">Mejor Valorados</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <Typography gutterBottom>Rango de Precio</Typography>
+            <Slider
+              value={priceRange}
+              onChange={(e, newValue) => setPriceRange(newValue)}
+              valueLabelDisplay="auto"
+              min={0}
+              max={1000}
+            />
+          </Grid>
+        </Grid>
+      </Box>
+
+      <Grid container spacing={3}>
+        {filteredProducts.map((product) => (
+          <Grid item key={product.id} xs={12} sm={6} md={4}>
+            <Card 
+              sx={{ 
                 height: '100%',
-                display: 'flex',
+                display: 'flex', 
                 flexDirection: 'column',
-                transition: '0.3s',
+                transition: 'transform 0.2s ease-in-out',
                 '&:hover': {
-                  transform: 'translateY(-5px)',
-                  boxShadow: 3,
-                },
+                  transform: 'scale(1.02)',
+                  boxShadow: 6,
+                }
               }}
             >
-              <CardMedia
-                component="img"
-                sx={{
-                  height: 250,
-                  objectFit: 'cover',
-                }}
-                image={product.imageUrl || 'https://via.placeholder.com/300x200'}
-                alt={product.name}
-              />
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Typography gutterBottom variant="h5" component="h2">
-                  {product.name}
-                </Typography>
-                <Typography color="text.secondary" paragraph>
-                  {product.description}
-                </Typography>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    mb: 1,
+              <CardActionArea onClick={() => handleProductClick(product.id)}>
+                <CardMedia
+                  component="img"
+                  height="280"
+                  image={product.image}
+                  alt={product.name}
+                  sx={{ objectFit: 'cover', p: 2 }}
+                />
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Typography gutterBottom variant="h5" component="h2">
+                    {product.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    {product.description}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Rating value={product.rating} precision={0.5} readOnly />
+                    <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                      ({product.reviews?.length || 0} reseñas)
+                    </Typography>
+                  </Box>
+                  <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
+                    ${product.price}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Stock: {product.stock}
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
+              <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', mt: 'auto' }}>
+                <Button
+                  variant="contained"
+                  startIcon={<ShoppingCartIcon />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddToCart(product);
+                  }}
+                  disabled={!product.stock}
+                >
+                  {product.stock ? 'Agregar' : 'Agotado'}
+                </Button>
+                <IconButton 
+                  color="primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Manejar favoritos
                   }}
                 >
-                  <Typography variant="h6" color="primary">
-                    ${product.price?.toFixed(2)}
-                  </Typography>
-                  {product.rating !== undefined && (
-                    <Rating value={product.rating} readOnly precision={0.5} />
-                  )}
-                </Box>
-                <Typography variant="body2" color="text.secondary">
-                  Stock: {product.stock || 0}
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  startIcon={<AddShoppingCartIcon />}
-                  onClick={() => handleAddToCart(product._id)}
-                  disabled={!product.stock || product.stock === 0}
-                >
-                  {!product.stock || product.stock === 0 ? 'Agotado' : 'Agregar al Carrito'}
-                </Button>
-              </CardActions>
+                  <FavoriteIcon />
+                </IconButton>
+              </Box>
             </Card>
           </Grid>
         ))}
       </Grid>
-      {pagination.totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <Pagination
-            count={pagination.totalPages}
-            page={pagination.page}
-            onChange={(_, page) => dispatch(fetchProducts({ page }))}
-            color="primary"
-          />
-        </Box>
-      )}
     </Container>
   );
-}
+};
 
 export default Products;

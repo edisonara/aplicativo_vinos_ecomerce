@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 // Generar Token JWT
 const generateToken = (id) => {
@@ -15,47 +16,49 @@ const register = async (req, res) => {
     try {
         const { name, email, password } = req.body;
 
-        // Verificar si falta algún campo
+        // Validar campos requeridos
         if (!name || !email || !password) {
             return res.status(400).json({
-                success: false,
                 message: 'Por favor complete todos los campos'
             });
         }
 
-        // Verificar si el usuario ya existe
-        const userExists = await User.findOne({ email });
+        // Validar longitud de contraseña
+        if (password.length < 6) {
+            return res.status(400).json({
+                message: 'La contraseña debe tener al menos 6 caracteres'
+            });
+        }
+
+        // Verificar si el email ya existe
+        const userExists = await User.findOne({ email: email.toLowerCase() });
         if (userExists) {
             return res.status(400).json({
-                success: false,
-                message: 'El usuario ya existe'
+                message: 'El correo electrónico ya está registrado'
             });
         }
 
         // Crear usuario
         const user = await User.create({
             name,
-            email,
+            email: email.toLowerCase(),
             password
         });
 
         if (user) {
+            const token = generateToken(user._id);
             res.status(201).json({
-                success: true,
-                data: {
-                    _id: user._id,
-                    name: user.name,
-                    email: user.email,
-                    role: user.role,
-                    token: generateToken(user._id)
-                }
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                token
             });
         }
     } catch (error) {
         console.error('Error en registro:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al registrar usuario'
+        res.status(400).json({
+            message: error.message || 'Error al registrar usuario'
         });
     }
 };
@@ -67,49 +70,42 @@ const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Verificar si falta algún campo
+        // Validar campos requeridos
         if (!email || !password) {
             return res.status(400).json({
-                success: false,
-                message: 'Por favor ingrese email y contraseña'
+                message: 'Por favor complete todos los campos'
             });
         }
 
-        // Buscar usuario y seleccionar password
-        const user = await User.findOne({ email }).select('+password');
-
+        // Buscar usuario por email
+        const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
             return res.status(401).json({
-                success: false,
                 message: 'Credenciales inválidas'
             });
         }
 
         // Verificar contraseña
         const isMatch = await user.comparePassword(password);
-
         if (!isMatch) {
             return res.status(401).json({
-                success: false,
                 message: 'Credenciales inválidas'
             });
         }
 
+        // Generar token y enviar respuesta
+        const token = generateToken(user._id);
         res.json({
-            success: true,
-            data: {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                token: generateToken(user._id)
-            }
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            token
         });
     } catch (error) {
         console.error('Error en login:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al iniciar sesión'
+        res.status(400).json({
+            message: error.message || 'Error al iniciar sesión'
         });
     }
 };
@@ -123,27 +119,22 @@ const getProfile = async (req, res) => {
         
         if (!user) {
             return res.status(404).json({
-                success: false,
                 message: 'Usuario no encontrado'
             });
         }
 
         res.json({
-            success: true,
-            data: {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                cart: user.cart,
-                shippingAddress: user.shippingAddress
-            }
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            cart: user.cart,
+            shippingAddress: user.shippingAddress
         });
     } catch (error) {
         console.error('Error al obtener perfil:', error);
         res.status(500).json({
-            success: false,
-            message: 'Error al obtener perfil'
+            message: error.message || 'Error al obtener perfil'
         });
     }
 };
@@ -157,7 +148,6 @@ const updateProfile = async (req, res) => {
 
         if (!user) {
             return res.status(404).json({
-                success: false,
                 message: 'Usuario no encontrado'
             });
         }
@@ -176,21 +166,17 @@ const updateProfile = async (req, res) => {
         const updatedUser = await user.save();
 
         res.json({
-            success: true,
-            data: {
-                _id: updatedUser._id,
-                name: updatedUser.name,
-                email: updatedUser.email,
-                role: updatedUser.role,
-                shippingAddress: updatedUser.shippingAddress,
-                token: generateToken(updatedUser._id)
-            }
+            _id: updatedUser._id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            shippingAddress: updatedUser.shippingAddress,
+            token: generateToken(updatedUser._id)
         });
     } catch (error) {
         console.error('Error al actualizar perfil:', error);
         res.status(500).json({
-            success: false,
-            message: 'Error al actualizar perfil'
+            message: error.message || 'Error al actualizar perfil'
         });
     }
 };
@@ -204,20 +190,17 @@ const getCart = async (req, res) => {
         
         if (!user) {
             return res.status(404).json({
-                success: false,
                 message: 'Usuario no encontrado'
             });
         }
 
         res.json({
-            success: true,
-            data: user.cart
+            cart: user.cart
         });
     } catch (error) {
         console.error('Error al obtener carrito:', error);
         res.status(500).json({
-            success: false,
-            message: 'Error al obtener carrito'
+            message: error.message || 'Error al obtener carrito'
         });
     }
 };
@@ -231,7 +214,6 @@ const addToCart = async (req, res) => {
 
         if (!productId || !quantity || quantity < 1) {
             return res.status(400).json({
-                success: false,
                 message: 'Por favor proporcione producto y cantidad válida'
             });
         }
@@ -242,14 +224,12 @@ const addToCart = async (req, res) => {
         const updatedUser = await User.findById(user._id).populate('cart.product');
 
         res.json({
-            success: true,
-            data: updatedUser.cart
+            cart: updatedUser.cart
         });
     } catch (error) {
         console.error('Error al agregar al carrito:', error);
         res.status(500).json({
-            success: false,
-            message: 'Error al agregar al carrito'
+            message: error.message || 'Error al agregar al carrito'
         });
     }
 };
@@ -265,14 +245,12 @@ const removeFromCart = async (req, res) => {
         const updatedUser = await User.findById(user._id).populate('cart.product');
 
         res.json({
-            success: true,
-            data: updatedUser.cart
+            cart: updatedUser.cart
         });
     } catch (error) {
         console.error('Error al remover del carrito:', error);
         res.status(500).json({
-            success: false,
-            message: 'Error al remover del carrito'
+            message: error.message || 'Error al remover del carrito'
         });
     }
 };
@@ -286,14 +264,12 @@ const clearCart = async (req, res) => {
         await user.clearCart();
 
         res.json({
-            success: true,
             message: 'Carrito limpiado exitosamente'
         });
     } catch (error) {
         console.error('Error al limpiar carrito:', error);
         res.status(500).json({
-            success: false,
-            message: 'Error al limpiar carrito'
+            message: error.message || 'Error al limpiar carrito'
         });
     }
 };
