@@ -22,34 +22,56 @@ const orderSchema = new mongoose.Schema({
             required: true
         }
     }],
+    shippingAddress: {
+        street: {
+            type: String,
+            required: true
+        },
+        city: {
+            type: String,
+            required: true
+        },
+        state: {
+            type: String,
+            required: true
+        },
+        zipCode: {
+            type: String,
+            required: true
+        },
+        country: {
+            type: String,
+            required: true
+        }
+    },
     totalAmount: {
         type: Number,
         required: true
     },
-    shippingAddress: {
-        street: String,
-        city: String,
-        state: String,
-        zipCode: String,
-        country: String
-    },
     status: {
         type: String,
-        enum: ['pendiente', 'procesando', 'enviado', 'entregado', 'cancelado'],
-        default: 'pendiente'
+        enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+        default: 'pending'
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['pending', 'completed', 'failed'],
+        default: 'pending'
     },
     paymentMethod: {
         type: String,
         required: true,
-        enum: ['tarjeta', 'efectivo', 'transferencia']
-    },
-    paymentStatus: {
-        type: String,
-        enum: ['pendiente', 'completado', 'fallido'],
-        default: 'pendiente'
+        enum: ['credit_card', 'debit_card', 'cash']
     }
 }, {
     timestamps: true
 });
+
+// Método para calcular el total de la orden
+orderSchema.methods.calculateTotal = function() {
+    return this.items.reduce((total, item) => {
+        return total + (item.price * item.quantity);
+    }, 0);
+};
 
 module.exports = mongoose.model('Order', orderSchema);

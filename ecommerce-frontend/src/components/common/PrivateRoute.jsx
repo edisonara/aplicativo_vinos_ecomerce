@@ -1,15 +1,20 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
-function PrivateRoute({ children }) {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+const PrivateRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" />;
+  if (loading) {
+    return <div>Cargando...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
   return children;
-}
+};
 
 export default PrivateRoute;

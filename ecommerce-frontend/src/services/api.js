@@ -1,71 +1,76 @@
 import axios from 'axios';
 
-const API = axios.create({
-    baseURL: 'http://localhost:5000/api',
-    headers: {
-        'Content-Type': 'application/json',
-    }
+const API_URL = 'http://localhost:5000/api';
+
+// Crear instancia de axios con configuración base
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-// Interceptor para manejar tokens y errores
-API.interceptors.request.use((config) => {
+// Interceptor para agregar el token a las peticiones
+api.interceptors.request.use(
+  (config) => {
     const token = localStorage.getItem('token');
     if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('Request:', {
-        url: config.url,
-        method: config.method,
-        headers: config.headers,
-        data: config.data
-    });
     return config;
-}, (error) => {
-    console.error('Request Error:', error);
+  },
+  (error) => {
     return Promise.reject(error);
-});
+  }
+);
 
-API.interceptors.response.use((response) => {
-    console.log('Response:', {
-        status: response.status,
-        data: response.data
-    });
-    return response;
-}, (error) => {
-    console.error('Response Error:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-    });
+// Interceptor para manejar errores de respuesta
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/auth';
+    }
     return Promise.reject(error);
-});
+  }
+);
 
+// API de usuarios y autenticación
 export const authAPI = {
-    login: (credentials) => API.post('/auth/login/', credentials),
-    register: (userData) => API.post('/auth/register/', userData),
-    logout: () => API.post('/auth/logout/'),
+  login: (credentials) => api.post('/users/login', credentials),
+  register: (userData) => api.post('/users/register', userData),
+  logout: () => api.post('/users/logout'),
+  getProfile: () => api.get('/users/me'),
+  updateProfile: (userData) => api.put('/users/me', userData),
 };
 
+// API de productos
 export const productAPI = {
-    getAllProducts: () => API.get('/products/'),
-    getProduct: (id) => API.get(`/products/${id}/`),
-    createProduct: (data) => API.post('/products/', data),
-    updateProduct: (id, data) => API.put(`/products/${id}/`, data),
-    deleteProduct: (id) => API.delete(`/products/${id}/`),
+  getAll: (params) => api.get('/products', { params }),
+  getById: (id) => api.get(`/products/${id}`),
+  create: (productData) => api.post('/products', productData),
+  update: (id, productData) => api.put(`/products/${id}`, productData),
+  delete: (id) => api.delete(`/products/${id}`),
+  search: (query) => api.get(`/products/search`, { params: { query } }),
 };
 
+// API del carrito
 export const cartAPI = {
-    getCart: () => API.get('/cart/'),
-    addToCart: (productId, quantity) => API.post('/cart/add/', { product_id: productId, quantity }),
-    updateCartItem: (itemId, quantity) => API.put(`/cart/items/${itemId}/`, { quantity }),
-    removeFromCart: (itemId) => API.delete(`/cart/items/${itemId}/`),
-    clearCart: () => API.delete('/cart/clear/'),
+  getCart: () => api.get('/cart'),
+  addToCart: (productId, quantity) => api.post('/cart/add', { productId, quantity }),
+  updateCartItem: (itemId, quantity) => api.put(`/cart/items/${itemId}`, { quantity }),
+  removeFromCart: (itemId) => api.delete(`/cart/items/${itemId}`),
+  clearCart: () => api.delete('/cart/clear'),
 };
 
+// API de órdenes
 export const orderAPI = {
-    createOrder: (orderData) => API.post('/orders/', orderData),
-    getOrders: () => API.get('/orders/'),
-    getOrder: (id) => API.get(`/orders/${id}/`),
+  create: (orderData) => api.post('/orders', orderData),
+  getAll: () => api.get('/orders'),
+  getById: (id) => api.get(`/orders/${id}`),
+  updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
+  cancel: (id) => api.put(`/orders/${id}/cancel`),
 };
 
-export default API; 
+export default api;

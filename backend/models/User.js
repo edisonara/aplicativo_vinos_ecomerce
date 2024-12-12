@@ -1,12 +1,11 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
     name: {
         type: String,
         required: [true, 'El nombre es requerido'],
-        trim: true,
-        minlength: [2, 'El nombre debe tener al menos 2 caracteres'],
-        maxlength: [50, 'El nombre no puede exceder los 50 caracteres']
+        trim: true
     },
     email: {
         type: String,
@@ -14,7 +13,7 @@ const userSchema = new mongoose.Schema({
         unique: true,
         trim: true,
         lowercase: true,
-        match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Por favor ingrese un email válido']
+        match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Email inválido']
     },
     password: {
         type: String,
@@ -23,59 +22,65 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: {
-            values: ['cliente', 'admin'],
-            message: '{VALUE} no es un rol válido'
-        },
-        default: 'cliente'
+        enum: ['user', 'admin'],
+        default: 'user'
     },
-    phoneNumber: {
-        type: String,
-        match: [/^\+?[\d\s-]{10,}$/, 'Por favor ingrese un número de teléfono válido']
-    },
-    addresses: [{
-        street: {
-            type: String,
-            required: [true, 'La calle es requerida']
+    cart: [{
+        product: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Product',
+            required: true
         },
-        city: {
-            type: String,
-            required: [true, 'La ciudad es requerida']
-        },
-        state: {
-            type: String,
-            required: [true, 'El estado/provincia es requerido']
-        },
-        zipCode: {
-            type: String,
-            required: [true, 'El código postal es requerido']
-        },
-        country: {
-            type: String,
-            required: [true, 'El país es requerido']
-        },
-        isDefault: {
-            type: Boolean,
-            default: false
+        quantity: {
+            type: Number,
+            required: true,
+            min: 1,
+            default: 1
         }
-    }],
-    purchaseHistory: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Order'
-    }],
-    active: {
-        type: Boolean,
-        default: true
-    }
+    }]
 }, {
     timestamps: true
 });
 
-// Método para no devolver la contraseña
-userSchema.methods.toJSON = function() {
-    const user = this.toObject();
-    delete user.password;
-    return user;
+// Middleware para hashear la contraseña antes de guardar
+userSchema.pre('save', async function(next) {
+    if (!this.isModified('password')) {
+        return next();
+    }
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+});
+
+// Método para comparar contraseñas
+userSchema.methods.comparePassword = async function(candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Métodos del carrito
+userSchema.methods.addToCart = function(productId, quantity = 1) {
+    const cartItemIndex = this.cart.findIndex(item => 
+        item.product.toString() === productId.toString()
+    );
+
+    if (cartItemIndex > -1) {
+        this.cart[cartItemIndex].quantity += quantity;
+    } else {
+        this.cart.push({ product: productId, quantity });
+    }
+
+    return this.save();
+};
+
+userSchema.methods.removeFromCart = function(productId) {
+    this.cart = this.cart.filter(item => 
+        item.product.toString() !== productId.toString()
+    );
+    return this.save();
+};
+
+userSchema.methods.clearCart = function() {
+    this.cart = [];
+    return this.save();
 };
 
 module.exports = mongoose.model('User', userSchema);

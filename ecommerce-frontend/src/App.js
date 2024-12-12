@@ -1,61 +1,42 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import theme from './theme';
-import Navbar from './components/common/Navbar';
-import Home from './pages/Home';
-import Auth from './pages/Auth';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Provider } from 'react-redux';
+import store from './redux/store';
+import Navbar from './components/layout/Navbar';
+import Login from './components/auth/Login';
+import Register from './components/auth/Register';
 import Products from './pages/Products';
-import ProductDetail from './pages/ProductDetail';
 import Cart from './pages/Cart';
-import Orders from './pages/Orders';
-import Users from './pages/Users';
-import PrivateRoute from './components/common/PrivateRoute';
-import AdminRoute from './components/common/AdminRoute';
+import Profile from './pages/Profile';
+import PrivateRoute from './components/routing/PrivateRoute';
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <Provider store={store}>
       <Router>
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/products/:id" element={<ProductDetail />} />
-          
-          {/* Rutas protegidas para usuarios autenticados */}
-          <Route
-            path="/cart"
-            element={
-              <PrivateRoute>
-                <Cart />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/orders"
-            element={
-              <PrivateRoute>
-                <Orders />
-              </PrivateRoute>
-            }
-          />
-
-          {/* Rutas protegidas para administradores */}
-          <Route
-            path="/admin/users"
-            element={
-              <AdminRoute>
-                <Users />
-              </AdminRoute>
-            }
-          />
-        </Routes>
+        <div className="App">
+          <Navbar />
+          <div className="container mx-auto px-4 py-8">
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/" element={<Products />} />
+              <Route path="/cart" element={
+                <PrivateRoute>
+                  <Cart />
+                </PrivateRoute>
+              } />
+              <Route path="/profile" element={
+                <PrivateRoute>
+                  <Profile />
+                </PrivateRoute>
+              } />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
+        </div>
       </Router>
-    </ThemeProvider>
+    </Provider>
   );
 }
 

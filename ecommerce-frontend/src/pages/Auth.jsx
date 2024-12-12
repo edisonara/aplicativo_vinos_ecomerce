@@ -1,232 +1,194 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Container,
   Paper,
+  Tabs,
+  Tab,
+  Box,
   Typography,
   TextField,
   Button,
-  Box,
-  Tab,
-  Tabs,
   Alert,
-  IconButton,
-  InputAdornment,
-  Grid,
+  CircularProgress,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { login, register } from '../redux/slices/authSlice';
-import Visibility from '@mui/icons-material/Visibility';
-import VisibilityOff from '@mui/icons-material/VisibilityOff';
-
-function TabPanel({ children, value, index }) {
-  return (
-    <div hidden={value !== index} style={{ padding: '24px 0' }}>
-      {value === index && <Box>{children}</Box>}
-    </div>
-  );
-}
+import { login, register, clearError } from '../redux/slices/authSlice';
 
 function Auth() {
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
+  const { loading, error, isAuthenticated } = useSelector((state) => state.auth);
   const [tab, setTab] = useState(0);
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [localError, setLocalError] = useState('');
+
   const [loginData, setLoginData] = useState({
     email: '',
     password: '',
   });
+
   const [registerData, setRegisterData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
-    phone: '',
   });
 
-  const handleTabChange = (event, newValue) => {
-    setTab(newValue);
-    setError('');
-  };
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Redirigir al usuario a la página anterior o a la página principal
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, location]);
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    
+    setLocalError('');
+    dispatch(clearError());
+
+    if (!loginData.email || !loginData.password) {
+      setLocalError('Por favor, complete todos los campos');
+      return;
+    }
+
     try {
       await dispatch(login(loginData)).unwrap();
-      navigate('/');
     } catch (err) {
-      setError(err.message || 'Error al iniciar sesión');
+      setLocalError(err.message || 'Error al iniciar sesión');
     }
   };
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setLocalError('');
+    dispatch(clearError());
+
+    if (!registerData.name || !registerData.email || !registerData.password || !registerData.confirmPassword) {
+      setLocalError('Por favor, complete todos los campos');
+      return;
+    }
 
     if (registerData.password !== registerData.confirmPassword) {
-      setError('Las contraseñas no coinciden');
+      setLocalError('Las contraseñas no coinciden');
       return;
     }
 
     if (registerData.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+      setLocalError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
 
     try {
-      const result = await dispatch(register(registerData)).unwrap();
-      if (result.token) {
-        navigate('/');
-      }
+      const { confirmPassword, ...userData } = registerData;
+      await dispatch(register(userData)).unwrap();
     } catch (err) {
-      console.error('Error de registro:', err);
-      setError(err.message || 'Error al registrarse. Por favor, intente nuevamente.');
+      setLocalError(err.message || 'Error al registrarse');
     }
   };
 
-  const handleClickShowPassword = () => {
-    setShowPassword(!showPassword);
+  const handleTabChange = (event, newValue) => {
+    setTab(newValue);
+    setLocalError('');
+    dispatch(clearError());
   };
 
   return (
-    <Container maxWidth="sm" sx={{ py: 8 }}>
-      <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+    <Container maxWidth="sm" sx={{ mt: 4 }}>
+      <Paper elevation={3} sx={{ p: 4 }}>
         <Tabs
           value={tab}
           onChange={handleTabChange}
-          variant="fullWidth"
-          indicatorColor="primary"
-          textColor="primary"
+          centered
           sx={{ mb: 3 }}
         >
           <Tab label="Iniciar Sesión" />
           <Tab label="Registrarse" />
         </Tabs>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
+        {(error || localError) && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error || localError}
           </Alert>
         )}
 
-        <TabPanel value={tab} index={0}>
+        {tab === 0 ? (
+          // Login Form
           <form onSubmit={handleLoginSubmit}>
             <TextField
               fullWidth
-              label="Correo electrónico"
+              label="Email"
               type="email"
-              margin="normal"
               value={loginData.email}
               onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-              required
+              margin="normal"
             />
             <TextField
               fullWidth
               label="Contraseña"
-              type={showPassword ? 'text' : 'password'}
-              margin="normal"
+              type="password"
               value={loginData.password}
               onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-              required
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={handleClickShowPassword} edge="end">
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
+              margin="normal"
             />
             <Button
               type="submit"
-              variant="contained"
-              color="primary"
               fullWidth
+              variant="contained"
               size="large"
+              disabled={loading}
               sx={{ mt: 3 }}
             >
-              Iniciar Sesión
+              {loading ? <CircularProgress size={24} /> : 'Iniciar Sesión'}
             </Button>
           </form>
-        </TabPanel>
-
-        <TabPanel value={tab} index={1}>
+        ) : (
+          // Register Form
           <form onSubmit={handleRegisterSubmit}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Nombre completo"
-                  value={registerData.name}
-                  onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Correo electrónico"
-                  type="email"
-                  value={registerData.email}
-                  onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Teléfono"
-                  value={registerData.phone}
-                  onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Contraseña"
-                  type={showPassword ? 'text' : 'password'}
-                  value={registerData.password}
-                  onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
-                  required
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton onClick={handleClickShowPassword} edge="end">
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Confirmar contraseña"
-                  type={showPassword ? 'text' : 'password'}
-                  value={registerData.confirmPassword}
-                  onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
-                  required
-                />
-              </Grid>
-            </Grid>
+            <TextField
+              fullWidth
+              label="Nombre"
+              value={registerData.name}
+              onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              value={registerData.email}
+              onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Contraseña"
+              type="password"
+              value={registerData.password}
+              onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Confirmar Contraseña"
+              type="password"
+              value={registerData.confirmPassword}
+              onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
+              margin="normal"
+            />
             <Button
               type="submit"
-              variant="contained"
-              color="primary"
               fullWidth
+              variant="contained"
               size="large"
+              disabled={loading}
               sx={{ mt: 3 }}
             >
-              Registrarse
+              {loading ? <CircularProgress size={24} /> : 'Registrarse'}
             </Button>
           </form>
-        </TabPanel>
+        )}
       </Paper>
     </Container>
   );

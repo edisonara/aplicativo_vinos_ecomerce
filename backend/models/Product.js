@@ -34,8 +34,14 @@ const productSchema = new mongoose.Schema({
         required: true
     },
     image: {
-        type: String,
-        required: true
+        data: {
+            type: String,  // Base64 string
+            required: true
+        },
+        contentType: {
+            type: String,
+            required: true
+        }
     },
     ratings: [{
         user: {

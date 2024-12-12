@@ -1,198 +1,170 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Container,
   Grid,
+  Paper,
   Typography,
   Button,
   Box,
-  Paper,
-  Rating,
-  TextField,
-  Snackbar,
+  CircularProgress,
   Alert,
-  Card,
-  CardMedia,
+  Rating,
+  Snackbar,
+  Divider,
 } from '@mui/material';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
-import { addToCart } from '../redux/slices/cartSlice';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { fetchProductById } from '../redux/slices/productSlice';
+import { addToCart } from '../redux/slices/cartSlice';
 
 function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const [quantity, setQuantity] = useState(1);
-  const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' });
-  const { currentProduct, loading, error } = useSelector((state) => state.products);
+  const { selectedProduct: product, loading, error } = useSelector((state) => state.products);
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
   useEffect(() => {
-    dispatch(fetchProductById(id));
+    if (id) {
+      dispatch(fetchProductById(id));
+    }
   }, [dispatch, id]);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!isAuthenticated) {
-      navigate('/auth');
+      setSnackbarMessage('Por favor, inicia sesión para agregar productos al carrito');
+      setSnackbarSeverity('warning');
+      setOpenSnackbar(true);
       return;
     }
 
-    if (quantity > currentProduct.stock) {
-      setNotification({
-        open: true,
-        message: 'No hay suficiente stock disponible',
-        severity: 'error'
-      });
-      return;
+    try {
+      await dispatch(addToCart({ productId: product._id, quantity: 1 })).unwrap();
+      setSnackbarMessage('Producto agregado al carrito');
+      setSnackbarSeverity('success');
+      setOpenSnackbar(true);
+    } catch (error) {
+      setSnackbarMessage(error.message || 'Error al agregar al carrito');
+      setSnackbarSeverity('error');
+      setOpenSnackbar(true);
     }
-
-    dispatch(addToCart({
-      id: currentProduct._id,
-      name: currentProduct.name,
-      price: currentProduct.price,
-      quantity,
-      image: currentProduct.image
-    }));
-
-    setNotification({
-      open: true,
-      message: 'Producto agregado al carrito',
-      severity: 'success'
-    });
   };
 
   if (loading) {
     return (
-      <Container sx={{ py: 8 }}>
-        <Typography>Cargando producto...</Typography>
-      </Container>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+        <CircularProgress />
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <Container sx={{ py: 8 }}>
-        <Typography color="error">{error}</Typography>
+      <Container>
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {error}
+        </Alert>
       </Container>
     );
   }
 
-  if (!currentProduct) {
+  if (!product) {
     return (
-      <Container sx={{ py: 8 }}>
-        <Typography>Producto no encontrado</Typography>
+      <Container>
+        <Alert severity="info" sx={{ mt: 2 }}>
+          Producto no encontrado
+        </Alert>
       </Container>
     );
   }
 
   return (
-    <Container sx={{ py: 8 }}>
-      <Grid container spacing={4}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardMedia
-              component="img"
-              height="400"
-              image={currentProduct.image}
-              alt={currentProduct.name}
-              sx={{ objectFit: 'contain' }}
+    <Container sx={{ py: 4 }}>
+      <Button
+        startIcon={<ArrowBackIcon />}
+        onClick={() => navigate('/products')}
+        sx={{ mb: 3 }}
+      >
+        Volver a Productos
+      </Button>
+
+      <Paper elevation={3} sx={{ p: 3 }}>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={6}>
+            <img
+              src={product.imageUrl || 'https://via.placeholder.com/400'}
+              alt={product.name}
+              style={{
+                width: '100%',
+                height: 'auto',
+                maxHeight: '400px',
+                objectFit: 'cover',
+                borderRadius: '8px',
+              }}
             />
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Box>
+          </Grid>
+          <Grid item xs={12} md={6}>
             <Typography variant="h4" component="h1" gutterBottom>
-              {currentProduct.name}
+              {product.name}
             </Typography>
+            
             <Typography variant="h5" color="primary" gutterBottom>
-              ${currentProduct.price.toFixed(2)}
+              ${product.price?.toFixed(2)}
             </Typography>
-            <Box sx={{ my: 2 }}>
-              <Rating value={currentProduct.averageRating || 0} readOnly precision={0.5} />
-              <Typography variant="body2" color="text.secondary">
-                ({currentProduct.ratings?.length || 0} valoraciones)
-              </Typography>
-            </Box>
+
+            {product.rating !== undefined && (
+              <Box sx={{ mb: 2 }}>
+                <Rating value={product.rating} precision={0.5} readOnly />
+              </Box>
+            )}
+
+            <Divider sx={{ my: 2 }} />
+
             <Typography variant="body1" paragraph>
-              {currentProduct.description}
+              {product.description}
             </Typography>
-            <Box sx={{ my: 3 }}>
-              <Typography variant="subtitle1" gutterBottom>
-                Detalles del producto:
+
+            {product.stock > 0 ? (
+              <Typography color="success.main" gutterBottom>
+                En stock: {product.stock} unidades
               </Typography>
-              <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Typography variant="body2">Categoría:</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      {currentProduct.category}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2">Marca:</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      {currentProduct.brand}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2">Contenido de alcohol:</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      {currentProduct.alcoholContent}%
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2">Stock disponible:</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      {currentProduct.stock} unidades
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, my: 3 }}>
-              <TextField
-                type="number"
-                label="Cantidad"
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                InputProps={{ inputProps: { min: 1, max: currentProduct.stock } }}
-                sx={{ width: 100 }}
-              />
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={<AddShoppingCartIcon />}
-                onClick={handleAddToCart}
-                disabled={currentProduct.stock === 0}
-                sx={{ flex: 1 }}
-              >
-                {currentProduct.stock === 0 ? 'Sin Stock' : 'Agregar al Carrito'}
-              </Button>
-            </Box>
-          </Box>
+            ) : (
+              <Typography color="error.main" gutterBottom>
+                Agotado
+              </Typography>
+            )}
+
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<AddShoppingCartIcon />}
+              onClick={handleAddToCart}
+              disabled={!product.stock}
+              sx={{ mt: 3 }}
+              fullWidth
+            >
+              Agregar al Carrito
+            </Button>
+          </Grid>
         </Grid>
-      </Grid>
+      </Paper>
 
       <Snackbar
-        open={notification.open}
+        open={openSnackbar}
         autoHideDuration={3000}
-        onClose={() => setNotification({ ...notification, open: false })}
+        onClose={() => setOpenSnackbar(false)}
       >
         <Alert
-          onClose={() => setNotification({ ...notification, open: false })}
-          severity={notification.severity}
+          onClose={() => setOpenSnackbar(false)}
+          severity={snackbarSeverity}
           sx={{ width: '100%' }}
         >
-          {notification.message}
+          {snackbarMessage}
         </Alert>
       </Snackbar>
     </Container>

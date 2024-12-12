@@ -1,39 +1,20 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
-import { store } from './redux/store';
-import App from './App';
-import { ThemeProvider, createTheme } from '@mui/material';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import store from './redux/store';
+import App from './App';
+import './index.css';
+import { AuthProvider } from './context/AuthContext';
 
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#2196F3',
+      main: '#1976d2',
     },
     secondary: {
-      main: '#21CBF3',
-    },
-    background: {
-      default: '#f5f5f5',
-    },
-  },
-  typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontWeight: 700,
-    },
-    h2: {
-      fontWeight: 600,
-    },
-  },
-  components: {
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          backgroundColor: '#ffffff',
-        },
-      },
+      main: '#dc004e',
     },
   },
 });
@@ -44,7 +25,9 @@ root.render(
     <Provider store={store}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </ThemeProvider>
     </Provider>
   </React.StrictMode>

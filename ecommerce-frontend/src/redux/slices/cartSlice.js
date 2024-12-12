@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { cartAPI } from '../../services/api';
 
+// Thunks
 export const fetchCart = createAsyncThunk(
     'cart/fetchCart',
     async (_, { rejectWithValue }) => {
@@ -8,7 +9,7 @@ export const fetchCart = createAsyncThunk(
             const response = await cartAPI.getCart();
             return response.data;
         } catch (error) {
-            return rejectWithValue(error.response.data);
+            return rejectWithValue(error.response?.data || { message: 'Error al obtener el carrito' });
         }
     }
 );
@@ -20,7 +21,7 @@ export const addToCart = createAsyncThunk(
             const response = await cartAPI.addToCart(productId, quantity);
             return response.data;
         } catch (error) {
-            return rejectWithValue(error.response.data);
+            return rejectWithValue(error.response?.data || { message: 'Error al agregar al carrito' });
         }
     }
 );
@@ -32,7 +33,7 @@ export const updateCartItem = createAsyncThunk(
             const response = await cartAPI.updateCartItem(itemId, quantity);
             return response.data;
         } catch (error) {
-            return rejectWithValue(error.response.data);
+            return rejectWithValue(error.response?.data || { message: 'Error al actualizar el carrito' });
         }
     }
 );
@@ -41,10 +42,10 @@ export const removeFromCart = createAsyncThunk(
     'cart/removeItem',
     async (itemId, { rejectWithValue }) => {
         try {
-            await cartAPI.removeFromCart(itemId);
-            return itemId;
+            const response = await cartAPI.removeFromCart(itemId);
+            return response.data;
         } catch (error) {
-            return rejectWithValue(error.response.data);
+            return rejectWithValue(error.response?.data || { message: 'Error al eliminar del carrito' });
         }
     }
 );
@@ -82,7 +83,7 @@ const cartSlice = createSlice({
             })
             .addCase(fetchCart.rejected, (state, action) => {
                 state.loading = false;
-                state.error = action.payload;
+                state.error = action.payload?.message || 'Error al obtener el carrito';
             })
             // Add to Cart
             .addCase(addToCart.pending, (state) => {
@@ -96,7 +97,7 @@ const cartSlice = createSlice({
             })
             .addCase(addToCart.rejected, (state, action) => {
                 state.loading = false;
-                state.error = action.payload;
+                state.error = action.payload?.message || 'Error al agregar al carrito';
             })
             // Update Cart Item
             .addCase(updateCartItem.pending, (state) => {
@@ -110,7 +111,7 @@ const cartSlice = createSlice({
             })
             .addCase(updateCartItem.rejected, (state, action) => {
                 state.loading = false;
-                state.error = action.payload;
+                state.error = action.payload?.message || 'Error al actualizar el carrito';
             })
             // Remove from Cart
             .addCase(removeFromCart.pending, (state) => {
@@ -119,12 +120,12 @@ const cartSlice = createSlice({
             })
             .addCase(removeFromCart.fulfilled, (state, action) => {
                 state.loading = false;
-                state.items = state.items.filter(item => item.id !== action.payload);
-                state.total = state.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+                state.items = action.payload.items;
+                state.total = action.payload.total;
             })
             .addCase(removeFromCart.rejected, (state, action) => {
                 state.loading = false;
-                state.error = action.payload;
+                state.error = action.payload?.message || 'Error al eliminar del carrito';
             });
     }
 });

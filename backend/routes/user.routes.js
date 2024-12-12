@@ -1,13 +1,31 @@
 const express = require('express');
 const router = express.Router();
-const userController = require('../controllers/userController');
+const {
+    register,
+    login,
+    getProfile,
+    updateProfile,
+    getCart,
+    addToCart,
+    removeFromCart,
+    clearCart
+} = require('../controllers/userController');
+const { protect } = require('../middleware/auth');
 
-// Rutas para usuarios
-router.post('/', userController.createUser);
-router.get('/', userController.getUsers);
-router.get('/:id', userController.getUserById);
-router.put('/:id', userController.updateUser);
-router.put('/:id/role', userController.changeUserRole);
-router.delete('/:id', userController.deleteUser);
+// Rutas públicas
+router.post('/register', register);
+router.post('/login', login);
+
+// Rutas protegidas
+router.use(protect); // Aplicar middleware de autenticación a todas las rutas siguientes
+
+router.get('/profile', getProfile);
+router.put('/profile', updateProfile);
+
+// Rutas del carrito
+router.get('/cart', getCart);
+router.post('/cart', addToCart);
+router.delete('/cart/:productId', removeFromCart);
+router.delete('/cart', clearCart);
 
 module.exports = router;
