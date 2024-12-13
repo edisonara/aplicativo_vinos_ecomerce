@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import axios from 'axios';
 import {
   Container,
   Grid,
@@ -17,40 +16,35 @@ import {
   Snackbar,
   Card,
   CardContent,
+  Chip,
+  IconButton,
 } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { addToCart } from '../redux/slices/cartSlice';
+import { fetchProductById, clearCurrentProduct } from '../redux/slices/productSlice';
 
 function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
-
-  const [product, setProduct] = useState(null);
+  const { currentProduct: product, loading, error } = useSelector(state => state.products);
+  
   const [quantity, setQuantity] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState('');
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
   useEffect(() => {
-    fetchProduct();
-  }, [id]);
-
-  const fetchProduct = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await axios.get(`http://localhost:5000/api/products/${id}`);
-      setProduct(response.data);
-    } catch (err) {
-      console.error('Error fetching product:', err);
-      setError('Error al cargar el producto');
-    } finally {
-      setLoading(false);
-    }
-  };
+    dispatch(fetchProductById(id));
+    return () => {
+      dispatch(clearCurrentProduct());
+    };
+  }, [dispatch, id]);
 
   const handleQuantityChange = (event) => {
     const value = parseInt(event.target.value);
@@ -61,41 +55,57 @@ function ProductDetail() {
 
   const handleAddToCart = async () => {
     if (!user) {
-      navigate('/auth?mode=login');
+      setSnackbar({
+        open: true,
+        message: 'Debes iniciar sesión para agregar productos al carrito',
+        severity: 'warning'
+      });
+      navigate('/auth');
       return;
     }
 
     try {
-      await dispatch(addToCart({ 
-        productId: product._id, 
-        quantity 
+      await dispatch(addToCart({
+        productId: product._id,
+        quantity,
+        price: product.price
       })).unwrap();
-      setSuccessMessage('Producto agregado al carrito');
+      
+      setSnackbar({
+        open: true,
+        message: 'Producto agregado al carrito',
+        severity: 'success'
+      });
     } catch (err) {
-      setError(err.message || 'Error al agregar al carrito');
+      setSnackbar({
+        open: true,
+        message: err.message || 'Error al agregar al carrito',
+        severity: 'error'
+      });
     }
   };
 
-  const handleBuyNow = async () => {
+  const handleBuyNow = () => {
     if (!user) {
-      navigate('/auth?mode=login');
+      setSnackbar({
+        open: true,
+        message: 'Debes iniciar sesión para comprar',
+        severity: 'warning'
+      });
+      navigate('/auth');
       return;
     }
+    handleAddToCart();
+    navigate('/cart');
+  };
 
-    try {
-      await dispatch(addToCart({ 
-        productId: product._id, 
-        quantity 
-      })).unwrap();
-      navigate('/cart');
-    } catch (err) {
-      setError(err.message || 'Error al procesar la compra');
-    }
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
   };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
       </Box>
     );
@@ -103,7 +113,7 @@ function ProductDetail() {
 
   if (error) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
+      <Container sx={{ mt: 4 }}>
         <Alert severity="error">{error}</Alert>
       </Container>
     );
@@ -111,144 +121,150 @@ function ProductDetail() {
 
   if (!product) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
+      <Container sx={{ mt: 4 }}>
         <Alert severity="info">Producto no encontrado</Alert>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container sx={{ py: 4 }}>
+      <Button
+        startIcon={<ArrowBackIcon />}
+        onClick={() => navigate(-1)}
+        sx={{ mb: 3 }}
+      >
+        Volver
+      </Button>
+
       <Grid container spacing={4}>
-        {/* Imagen del Producto */}
+        {/* Imagen del producto */}
         <Grid item xs={12} md={6}>
-          <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
-            <Box
-              component="img"
-              sx={{
-                width: '100%',
-                height: 'auto',
-                maxHeight: 500,
-                objectFit: 'contain',
-              }}
+          <Paper
+            sx={{
+              p: 2,
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <img
               src={product.imageUrl || 'https://via.placeholder.com/400'}
               alt={product.name}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '400px',
+                objectFit: 'contain',
+              }}
             />
           </Paper>
         </Grid>
 
-        {/* Detalles del Producto */}
+        {/* Detalles del producto */}
         <Grid item xs={12} md={6}>
           <Box>
-            <Typography variant="h4" gutterBottom>
+            <Box sx={{ mb: 2 }}>
+              <Chip
+                label={product.category}
+                color="primary"
+                variant="outlined"
+                size="small"
+              />
+            </Box>
+            <Typography variant="h4" component="h1" gutterBottom>
               {product.name}
             </Typography>
-            
-            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-              <Rating value={product.rating || 0} precision={0.5} readOnly />
-              <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                ({product.reviews?.length || 0} reseñas)
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Rating value={product.rating || 0} readOnly precision={0.5} />
+              <Typography variant="body2" color="text.secondary">
+                ({product.numReviews || 0} reseñas)
               </Typography>
             </Box>
-
             <Typography variant="h5" color="primary" gutterBottom>
-              ${(product.price || 0).toFixed(2)}
+              ${product.price?.toFixed(2)}
             </Typography>
-
-            <Typography variant="body1" sx={{ mb: 3 }}>
+            <Typography variant="body1" paragraph>
               {product.description}
             </Typography>
 
-            <Box sx={{ mb: 3 }}>
+            <Box sx={{ my: 3 }}>
               <Typography variant="subtitle1" gutterBottom>
-                Stock disponible: {product.stock || 0}
+                Stock disponible: {product.stock}
               </Typography>
-              <TextField
-                type="number"
-                label="Cantidad"
-                value={quantity}
-                onChange={handleQuantityChange}
-                inputProps={{ min: 1, max: product.stock }}
-                sx={{ width: 100 }}
-              />
+              {product.stock > 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                  <TextField
+                    type="number"
+                    label="Cantidad"
+                    value={quantity}
+                    onChange={handleQuantityChange}
+                    InputProps={{ inputProps: { min: 1, max: product.stock } }}
+                    size="small"
+                    sx={{ width: 100 }}
+                  />
+                  <Button
+                    variant="contained"
+                    startIcon={<AddShoppingCartIcon />}
+                    onClick={handleAddToCart}
+                    disabled={!product.stock}
+                  >
+                    Agregar al carrito
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    startIcon={<ShoppingBagIcon />}
+                    onClick={handleBuyNow}
+                    disabled={!product.stock}
+                  >
+                    Comprar ahora
+                  </Button>
+                </Box>
+              ) : (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  Producto agotado
+                </Alert>
+              )}
             </Box>
 
-            <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
-              <Button
-                variant="contained"
-                startIcon={<AddShoppingCartIcon />}
-                onClick={handleAddToCart}
-                disabled={!product.stock}
-                fullWidth
-              >
-                Agregar al Carrito
-              </Button>
-              <Button
-                variant="contained"
-                color="secondary"
-                startIcon={<ShoppingBagIcon />}
-                onClick={handleBuyNow}
-                disabled={!product.stock}
-                fullWidth
-              >
-                Comprar Ahora
-              </Button>
-            </Box>
+            <Divider sx={{ my: 3 }} />
+
+            {/* Características del producto */}
+            <Typography variant="h6" gutterBottom>
+              Características
+            </Typography>
+            <Grid container spacing={2}>
+              {product.features?.map((feature, index) => (
+                <Grid item xs={12} sm={6} key={index}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        {feature.name}
+                      </Typography>
+                      <Typography variant="body2">
+                        {feature.value}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
           </Box>
-
-          {/* Características del Producto */}
-          <Card sx={{ mt: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Características
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Categoría
-                  </Typography>
-                  <Typography>{product.category}</Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Marca
-                  </Typography>
-                  <Typography>{product.brand || 'No especificada'}</Typography>
-                </Grid>
-                {product.alcohol && (
-                  <Grid item xs={6}>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Contenido de Alcohol
-                    </Typography>
-                    <Typography>{product.alcohol}%</Typography>
-                  </Grid>
-                )}
-                {product.volume && (
-                  <Grid item xs={6}>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Volumen
-                    </Typography>
-                    <Typography>{product.volume}ml</Typography>
-                  </Grid>
-                )}
-              </Grid>
-            </CardContent>
-          </Card>
         </Grid>
       </Grid>
 
-      {/* Snackbar para mensajes de éxito */}
       <Snackbar
-        open={!!successMessage}
-        autoHideDuration={3000}
-        onClose={() => setSuccessMessage('')}
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
       >
-        <Alert 
-          onClose={() => setSuccessMessage('')} 
-          severity="success"
+        <Alert
+          onClose={handleCloseSnackbar}
+          severity={snackbar.severity}
           sx={{ width: '100%' }}
         >
-          {successMessage}
+          {snackbar.message}
         </Alert>
       </Snackbar>
     </Container>

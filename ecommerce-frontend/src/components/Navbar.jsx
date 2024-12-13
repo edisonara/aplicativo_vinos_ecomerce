@@ -17,6 +17,8 @@ import {
   ListItemText,
   useTheme,
   useMediaQuery,
+  Divider,
+  Tooltip,
 } from '@mui/material';
 import {
   ShoppingCart as ShoppingCartIcon,
@@ -25,14 +27,17 @@ import {
   Home as HomeIcon,
   LocalBar as LocalBarIcon,
   Logout as LogoutIcon,
+  AccountCircle as AccountCircleIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { useAuth } from '../context/AuthContext';
+import { useDispatch, useSelector } from 'react-redux';
+import { logout } from '../redux/slices/authSlice';
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const dispatch = useDispatch();
+  const { user, isAuthenticated } = useSelector(state => state.auth);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const cartItems = useSelector(state => state.cart.items);
@@ -49,7 +54,7 @@ const Navbar = () => {
   };
 
   const handleLogout = () => {
-    logout();
+    dispatch(logout());
     handleMenuClose();
     navigate('/');
   };
@@ -61,6 +66,52 @@ const Navbar = () => {
     { text: 'Productos', icon: <LocalBarIcon />, path: '/products' },
   ];
 
+  const renderUserMenu = (
+    <Menu
+      anchorEl={anchorEl}
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'right',
+      }}
+      keepMounted
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      open={Boolean(anchorEl)}
+      onClose={handleMenuClose}
+    >
+      <Box sx={{ px: 2, py: 1 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+          {user?.name || 'Usuario'}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {user?.email}
+        </Typography>
+      </Box>
+      <Divider />
+      <MenuItem onClick={() => { handleMenuClose(); navigate('/profile'); }}>
+        <ListItemIcon>
+          <PersonIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Mi Perfil</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={() => { handleMenuClose(); navigate('/settings'); }}>
+        <ListItemIcon>
+          <SettingsIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Configuración</ListItemText>
+      </MenuItem>
+      <Divider />
+      <MenuItem onClick={handleLogout}>
+        <ListItemIcon>
+          <LogoutIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Cerrar Sesión</ListItemText>
+      </MenuItem>
+    </Menu>
+  );
+
   const renderMobileMenu = (
     <Drawer
       anchor="right"
@@ -68,6 +119,16 @@ const Navbar = () => {
       onClose={() => setMobileMenuOpen(false)}
     >
       <Box sx={{ width: 250 }} role="presentation">
+        {isAuthenticated && (
+          <Box sx={{ p: 2, bgcolor: 'primary.main', color: 'white' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+              {user?.name || 'Usuario'}
+            </Typography>
+            <Typography variant="body2">
+              {user?.email}
+            </Typography>
+          </Box>
+        )}
         <List>
           {menuItems.map((item) => (
             <ListItem
@@ -82,7 +143,7 @@ const Navbar = () => {
               <ListItemText primary={item.text} />
             </ListItem>
           ))}
-          {user ? (
+          {isAuthenticated ? (
             <>
               <ListItem
                 button
@@ -117,7 +178,7 @@ const Navbar = () => {
             <ListItem
               button
               onClick={() => {
-                navigate('/auth?mode=login');
+                navigate('/auth');
                 setMobileMenuOpen(false);
               }}
             >
@@ -139,93 +200,79 @@ const Navbar = () => {
           sx={{ flexGrow: 1, cursor: 'pointer' }}
           onClick={() => navigate('/')}
         >
-          Licor Store
+          Licorería Online
         </Typography>
 
-        {isMobile ? (
-          <>
-            <IconButton
-              color="inherit"
-              onClick={() => setMobileMenuOpen(true)}
-            >
-              <MenuIcon />
-            </IconButton>
-            {renderMobileMenu}
-          </>
-        ) : (
-          <>
+        {!isMobile && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {menuItems.map((item) => (
               <Button
                 key={item.text}
                 color="inherit"
                 startIcon={item.icon}
                 onClick={() => navigate(item.path)}
-                sx={{ mx: 1 }}
               >
                 {item.text}
               </Button>
             ))}
+          </Box>
+        )}
 
-            {user ? (
-              <>
-                <IconButton
-                  color="inherit"
-                  onClick={() => navigate('/cart')}
-                  sx={{ mx: 1 }}
-                >
-                  <Badge badgeContent={cartItemCount} color="error">
-                    <ShoppingCartIcon />
-                  </Badge>
-                </IconButton>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {!isMobile && (
+            <Tooltip title="Carrito">
+              <IconButton
+                color="inherit"
+                onClick={() => navigate('/cart')}
+              >
+                <Badge badgeContent={cartItemCount} color="error">
+                  <ShoppingCartIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+          )}
 
-                <IconButton
-                  onClick={handleProfileMenuOpen}
-                  sx={{ ml: 1 }}
-                >
-                  <Avatar
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      bgcolor: 'secondary.main',
-                    }}
+          {isAuthenticated ? (
+            <>
+              {!isMobile && (
+                <Tooltip title="Cuenta">
+                  <IconButton
+                    onClick={handleProfileMenuOpen}
+                    color="inherit"
                   >
-                    {user.name?.charAt(0).toUpperCase()}
-                  </Avatar>
-                </IconButton>
-
-                <Menu
-                  anchorEl={anchorEl}
-                  open={Boolean(anchorEl)}
-                  onClose={handleMenuClose}
-                >
-                  <MenuItem onClick={() => {
-                    navigate('/profile');
-                    handleMenuClose();
-                  }}>
-                    Mi Perfil
-                  </MenuItem>
-                  <MenuItem onClick={() => {
-                    navigate('/orders');
-                    handleMenuClose();
-                  }}>
-                    Mis Pedidos
-                  </MenuItem>
-                  <MenuItem onClick={handleLogout}>
-                    Cerrar Sesión
-                  </MenuItem>
-                </Menu>
-              </>
-            ) : (
+                    <Avatar
+                      sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}
+                    >
+                      {user?.name?.charAt(0) || 'U'}
+                    </Avatar>
+                  </IconButton>
+                </Tooltip>
+              )}
+            </>
+          ) : (
+            !isMobile && (
               <Button
                 color="inherit"
                 startIcon={<PersonIcon />}
-                onClick={() => navigate('/auth?mode=login')}
+                onClick={() => navigate('/auth')}
               >
                 Iniciar Sesión
               </Button>
-            )}
-          </>
-        )}
+            )
+          )}
+
+          {isMobile && (
+            <IconButton
+              color="inherit"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
+        </Box>
+
+        {renderUserMenu}
+        {renderMobileMenu}
       </Toolbar>
     </AppBar>
   );

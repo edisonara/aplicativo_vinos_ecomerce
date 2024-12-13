@@ -5,6 +5,7 @@ const API_URL = 'http://localhost:5000/api/products';
 
 const initialState = {
   products: [],
+  featuredProducts: [],
   currentProduct: null,
   loading: false,
   error: null,
@@ -17,14 +18,30 @@ const initialState = {
     category: '',
     search: '',
     priceRange: [0, 1000],
+    sortBy: 'createdAt',
+    order: 'desc'
   },
 };
 
+// Obtener productos con filtros y paginación
 export const fetchProducts = createAsyncThunk(
   'products/fetchProducts',
-  async (_, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const response = await axios.get(API_URL);
+      const { filters, pagination } = getState().products;
+      const queryParams = {
+        page: pagination.page,
+        limit: 12,
+        category: filters.category || params.category || '',
+        search: filters.search || params.search || '',
+        minPrice: filters.priceRange[0],
+        maxPrice: filters.priceRange[1],
+        sortBy: filters.sortBy,
+        order: filters.order,
+        ...params
+      };
+
+      const response = await axios.get(API_URL, { params: queryParams });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Error al cargar productos');
@@ -32,6 +49,20 @@ export const fetchProducts = createAsyncThunk(
   }
 );
 
+// Obtener productos destacados
+export const fetchFeaturedProducts = createAsyncThunk(
+  'products/fetchFeaturedProducts',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/featured`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Error al cargar productos destacados');
+    }
+  }
+);
+
+// Obtener producto por ID
 export const fetchProductById = createAsyncThunk(
   'products/fetchProductById',
   async (id, { rejectWithValue }) => {
@@ -44,6 +75,33 @@ export const fetchProductById = createAsyncThunk(
   }
 );
 
+// Buscar productos
+export const searchProducts = createAsyncThunk(
+  'products/searchProducts',
+  async (searchTerm, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/search`, { params: { q: searchTerm } });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Error en la búsqueda');
+    }
+  }
+);
+
+// Obtener productos por categoría
+export const fetchProductsByCategory = createAsyncThunk(
+  'products/fetchProductsByCategory',
+  async (category, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/category/${category}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Error al cargar productos de la categoría');
+    }
+  }
+);
+
+// Crear producto
 export const createProduct = createAsyncThunk(
   'products/createProduct',
   async (productData, { rejectWithValue }) => {
@@ -56,6 +114,7 @@ export const createProduct = createAsyncThunk(
   }
 );
 
+// Actualizar producto
 export const updateProduct = createAsyncThunk(
   'products/updateProduct',
   async ({ id, productData }, { rejectWithValue }) => {
@@ -68,6 +127,7 @@ export const updateProduct = createAsyncThunk(
   }
 );
 
+// Eliminar producto
 export const deleteProduct = createAsyncThunk(
   'products/deleteProduct',
   async (id, { rejectWithValue }) => {
@@ -86,20 +146,21 @@ const productSlice = createSlice({
   reducers: {
     setFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
+      state.pagination.page = 1; // Reset page when filters change
     },
     clearFilters: (state) => {
-      state.filters = {
-        category: '',
-        search: '',
-        priceRange: [0, 1000],
-      };
+      state.filters = initialState.filters;
+      state.pagination.page = 1;
+    },
+    setPage: (state, action) => {
+      state.pagination.page = action.payload;
     },
     clearCurrentProduct: (state) => {
       state.currentProduct = null;
     },
     clearError: (state) => {
       state.error = null;
-    },
+    }
   },
   extraReducers: (builder) => {
     builder
@@ -120,9 +181,21 @@ const productSlice = createSlice({
       .addCase(fetchProducts.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-        state.products = [];
       })
-      // Fetch Product By Id
+      // Featured Products
+      .addCase(fetchFeaturedProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchFeaturedProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.featuredProducts = action.payload;
+      })
+      .addCase(fetchFeaturedProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Fetch Product by ID
       .addCase(fetchProductById.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -134,7 +207,20 @@ const productSlice = createSlice({
       .addCase(fetchProductById.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-        state.currentProduct = null;
+      })
+      // Search Products
+      .addCase(searchProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(searchProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.products = action.payload.products;
+        state.pagination = action.payload.pagination;
+      })
+      .addCase(searchProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       })
       // Create Product
       .addCase(createProduct.pending, (state) => {
@@ -184,8 +270,8 @@ const productSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       });
-  },
+  }
 });
 
-export const { setFilters, clearFilters, clearCurrentProduct, clearError } = productSlice.actions;
+export const { setFilters, clearFilters, setPage, clearCurrentProduct, clearError } = productSlice.actions;
 export default productSlice.reducer;

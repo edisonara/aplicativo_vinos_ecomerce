@@ -1,75 +1,72 @@
-import React, { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Container,
   Grid,
+  Card,
+  CardMedia,
+  CardContent,
   Typography,
+  Button,
+  IconButton,
   Box,
-  CircularProgress,
-  Alert,
   TextField,
   InputAdornment,
-  IconButton,
   Drawer,
   List,
   ListItem,
   ListItemText,
-  Divider,
-  Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
+  Slider,
+  Checkbox,
+  FormControlLabel,
+  CircularProgress,
+  Alert,
+  Snackbar,
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import ProductCard from '../components/ProductCard';
+import {
+  Search as SearchIcon,
+  FilterList as FilterListIcon,
+  AddShoppingCart as AddShoppingCartIcon,
+} from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import { addToCart } from '../redux/slices/cartSlice';
+import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 
-function Products() {
-  const { user } = useSelector(state => state.auth);
+const Products = () => {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({
-    category: 'all',
-    minPrice: '',
-    maxPrice: '',
-    sortBy: 'name'
-  });
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  
+  // Estados para filtros
+  const [searchQuery, setSearchQuery] = useState('');
+  const [priceRange, setPriceRange] = useState([0, 1000]);
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     fetchProducts();
-  }, [filters]);
+    fetchCategories();
+  }, []);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      let url = 'http://localhost:5000/api/products';
-      let params = {};
-
-      // Aplicar filtros
-      if (filters.category !== 'all') {
-        params.category = filters.category;
-      }
-      if (filters.minPrice) {
-        params.minPrice = filters.minPrice;
-      }
-      if (filters.maxPrice) {
-        params.maxPrice = filters.maxPrice;
-      }
-      if (filters.sortBy) {
-        params.sort = filters.sortBy;
-      }
-
-      const response = await axios.get(url, { params });
-      const allProducts = Array.isArray(response.data) ? response.data : 
-                         response.data.products ? response.data.products : [];
-      setProducts(allProducts);
+      const response = await axios.get('http://localhost:5000/api/products', {
+        params: {
+          search: searchQuery,
+          minPrice: priceRange[0],
+          maxPrice: priceRange[1],
+          categories: selectedCategories.join(','),
+        },
+      });
+      setProducts(response.data);
     } catch (err) {
       console.error('Error fetching products:', err);
       setError('Error al cargar los productos');
@@ -78,192 +75,244 @@ function Products() {
     }
   };
 
-  const handleSearch = (event) => {
-    setSearchTerm(event.target.value);
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/categories');
+      setCategories(response.data);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
   };
 
-  const handleFilterChange = (event) => {
-    setFilters({
-      ...filters,
-      [event.target.name]: event.target.value
+  const handleAddToCart = async (product) => {
+    if (!user) {
+      navigate('/auth?mode=login');
+      return;
+    }
+
+    try {
+      await dispatch(addToCart({
+        productId: product._id,
+        quantity: 1
+      })).unwrap();
+      setSuccessMessage('Producto agregado al carrito');
+    } catch (err) {
+      setError(err.message || 'Error al agregar al carrito');
+    }
+  };
+
+  const handleSearch = (event) => {
+    setSearchQuery(event.target.value);
+  };
+
+  const handlePriceChange = (event, newValue) => {
+    setPriceRange(newValue);
+  };
+
+  const handleCategoryChange = (category) => {
+    setSelectedCategories(prev => {
+      if (prev.includes(category)) {
+        return prev.filter(cat => cat !== category);
+      }
+      return [...prev, category];
     });
   };
 
-  const filteredProducts = products.filter(product => 
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.description.toLowerCase().includes(searchTerm.toLowerCase())
+  const applyFilters = () => {
+    fetchProducts();
+    setFilterDrawerOpen(false);
+  };
+
+  const filterDrawer = (
+    <Drawer
+      anchor="right"
+      open={filterDrawerOpen}
+      onClose={() => setFilterDrawerOpen(false)}
+    >
+      <Box sx={{ width: 250, p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          Filtros
+        </Typography>
+        
+        <Typography gutterBottom>
+          Rango de Precio
+        </Typography>
+        <Box sx={{ px: 2 }}>
+          <Slider
+            value={priceRange}
+            onChange={handlePriceChange}
+            valueLabelDisplay="auto"
+            min={0}
+            max={1000}
+          />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Typography>${priceRange[0]}</Typography>
+            <Typography>${priceRange[1]}</Typography>
+          </Box>
+        </Box>
+
+        <Typography sx={{ mt: 2 }} gutterBottom>
+          Categorías
+        </Typography>
+        <List>
+          {categories.map((category) => (
+            <ListItem key={category._id} dense>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={selectedCategories.includes(category._id)}
+                    onChange={() => handleCategoryChange(category._id)}
+                  />
+                }
+                label={category.name}
+              />
+            </ListItem>
+          ))}
+        </List>
+
+        <Button
+          variant="contained"
+          fullWidth
+          onClick={applyFilters}
+          sx={{ mt: 2 }}
+        >
+          Aplicar Filtros
+        </Button>
+      </Box>
+    </Drawer>
   );
 
-  const categories = [
-    'all',
-    'Vinos',
-    'Cervezas',
-    'Licores',
-    'Whisky',
-    'Ron',
-    'Vodka',
-    'Tequila'
-  ];
-
-  const sortOptions = [
-    { value: 'name', label: 'Nombre' },
-    { value: 'price', label: 'Precio: Menor a Mayor' },
-    { value: '-price', label: 'Precio: Mayor a Menor' },
-    { value: '-rating', label: 'Mejor Valorados' }
-  ];
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Barra de búsqueda y filtros */}
-      <Box sx={{ mb: 4 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={6}>
-            <TextField
-              fullWidth
-              variant="outlined"
-              placeholder="Buscar productos..."
-              value={searchTerm}
-              onChange={handleSearch}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Box display="flex" justifyContent="flex-end">
-              <IconButton onClick={() => setDrawerOpen(true)}>
-                <FilterListIcon />
-              </IconButton>
-            </Box>
-          </Grid>
-        </Grid>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Productos
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <TextField
+            size="small"
+            placeholder="Buscar productos..."
+            value={searchQuery}
+            onChange={handleSearch}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<FilterListIcon />}
+            onClick={() => setFilterDrawerOpen(true)}
+          >
+            Filtros
+          </Button>
+        </Box>
       </Box>
 
-      {/* Drawer de Filtros */}
-      <Drawer
-        anchor="right"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+      <Grid container spacing={3}>
+        {products.map((product) => (
+          <Grid item key={product._id} xs={12} sm={6} md={4}>
+            <Card
+              sx={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 4,
+                  transition: 'all 0.3s ease-in-out',
+                },
+              }}
+            >
+              <CardMedia
+                component="img"
+                height="200"
+                image={product.imageUrl || 'https://via.placeholder.com/200'}
+                alt={product.name}
+                sx={{ objectFit: 'contain', p: 2, cursor: 'pointer' }}
+                onClick={() => navigate(`/products/${product._id}`)}
+              />
+              <CardContent sx={{ flexGrow: 1 }}>
+                <Typography
+                  gutterBottom
+                  variant="h6"
+                  component="h2"
+                  sx={{
+                    cursor: 'pointer',
+                    '&:hover': { color: 'primary.main' },
+                  }}
+                  onClick={() => navigate(`/products/${product._id}`)}
+                >
+                  {product.name}
+                </Typography>
+                <Typography color="text.secondary" paragraph>
+                  {product.description}
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="h6" color="primary">
+                    ${product.price.toFixed(2)}
+                  </Typography>
+                  <IconButton
+                    color="primary"
+                    onClick={() => handleAddToCart(product)}
+                    disabled={!product.stock}
+                  >
+                    <AddShoppingCartIcon />
+                  </IconButton>
+                </Box>
+                {!product.stock && (
+                  <Typography color="error" variant="body2">
+                    Agotado
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {filterDrawer}
+
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={3000}
+        onClose={() => setSuccessMessage('')}
       >
-        <Box sx={{ width: 250, p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Filtros
-          </Typography>
-          <List>
-            <ListItem>
-              <FormControl fullWidth>
-                <InputLabel>Categoría</InputLabel>
-                <Select
-                  value={filters.category}
-                  name="category"
-                  onChange={handleFilterChange}
-                >
-                  {categories.map((category) => (
-                    <MenuItem key={category} value={category}>
-                      {category === 'all' ? 'Todas las categorías' : category}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </ListItem>
-            <ListItem>
-              <FormControl fullWidth>
-                <InputLabel>Ordenar por</InputLabel>
-                <Select
-                  value={filters.sortBy}
-                  name="sortBy"
-                  onChange={handleFilterChange}
-                >
-                  {sortOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </ListItem>
-            <ListItem>
-              <TextField
-                fullWidth
-                type="number"
-                label="Precio mínimo"
-                name="minPrice"
-                value={filters.minPrice}
-                onChange={handleFilterChange}
-              />
-            </ListItem>
-            <ListItem>
-              <TextField
-                fullWidth
-                type="number"
-                label="Precio máximo"
-                name="maxPrice"
-                value={filters.maxPrice}
-                onChange={handleFilterChange}
-              />
-            </ListItem>
-          </List>
-        </Box>
-      </Drawer>
+        <Alert
+          onClose={() => setSuccessMessage('')}
+          severity="success"
+          sx={{ width: '100%' }}
+        >
+          {successMessage}
+        </Alert>
+      </Snackbar>
 
-      {/* Filtros activos */}
-      {(filters.category !== 'all' || filters.minPrice || filters.maxPrice) && (
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            Filtros activos:
-          </Typography>
-          <Box display="flex" gap={1} flexWrap="wrap">
-            {filters.category !== 'all' && (
-              <Chip
-                label={`Categoría: ${filters.category}`}
-                onDelete={() => handleFilterChange({ target: { name: 'category', value: 'all' } })}
-              />
-            )}
-            {filters.minPrice && (
-              <Chip
-                label={`Precio mín: $${filters.minPrice}`}
-                onDelete={() => handleFilterChange({ target: { name: 'minPrice', value: '' } })}
-              />
-            )}
-            {filters.maxPrice && (
-              <Chip
-                label={`Precio máx: $${filters.maxPrice}`}
-                onDelete={() => handleFilterChange({ target: { name: 'maxPrice', value: '' } })}
-              />
-            )}
-          </Box>
-        </Box>
-      )}
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 4 }}>
+      <Snackbar
+        open={!!error}
+        autoHideDuration={3000}
+        onClose={() => setError(null)}
+      >
+        <Alert
+          onClose={() => setError(null)}
+          severity="error"
+          sx={{ width: '100%' }}
+        >
           {error}
         </Alert>
-      )}
-
-      {loading ? (
-        <Box display="flex" justifyContent="center" my={4}>
-          <CircularProgress />
-        </Box>
-      ) : filteredProducts.length > 0 ? (
-        <Grid container spacing={4}>
-          {filteredProducts.map((product) => (
-            <Grid item key={product._id} xs={12} sm={6} md={4} lg={3}>
-              <ProductCard product={product} />
-            </Grid>
-          ))}
-        </Grid>
-      ) : (
-        <Alert severity="info">
-          No se encontraron productos que coincidan con tu búsqueda.
-        </Alert>
-      )}
+      </Snackbar>
     </Container>
   );
-}
+};
 
 export default Products;

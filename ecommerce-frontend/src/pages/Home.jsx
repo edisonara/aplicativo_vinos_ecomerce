@@ -1,22 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import axios from 'axios';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Container,
   Grid,
   Typography,
   Button,
   Box,
-  Card,
-  CardContent,
   CircularProgress,
   Alert,
   Tabs,
   Tab,
+  TextField,
+  IconButton,
+  Pagination,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Slider,
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import LocalBarIcon from '@mui/icons-material/LocalBar';
 import ProductCard from '../components/ProductCard';
+import {
+  fetchProducts,
+  fetchFeaturedProducts,
+  setFilters,
+  clearFilters,
+  setPage,
+} from '../redux/slices/productSlice';
 
 const categories = [
   'Todos',
@@ -29,50 +43,69 @@ const categories = [
   'Tequila'
 ];
 
+const sortOptions = [
+  { value: 'createdAt_desc', label: 'Más recientes' },
+  { value: 'createdAt_asc', label: 'Más antiguos' },
+  { value: 'price_asc', label: 'Menor precio' },
+  { value: 'price_desc', label: 'Mayor precio' },
+  { value: 'rating_desc', label: 'Mejor valorados' },
+];
+
 function Home() {
   const navigate = useNavigate();
-  const { user } = useSelector(state => state.auth);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState('Todos');
-  const [featuredProducts, setFeaturedProducts] = useState([]);
+  const dispatch = useDispatch();
+  const { 
+    products, 
+    featuredProducts, 
+    loading, 
+    error,
+    filters,
+    pagination 
+  } = useSelector(state => state.products);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [priceRange, setPriceRange] = useState(filters.priceRange);
 
   useEffect(() => {
-    fetchProducts();
-  }, [selectedCategory]);
+    dispatch(fetchProducts());
+    dispatch(fetchFeaturedProducts());
+  }, [dispatch]);
 
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const params = selectedCategory !== 'Todos' ? { category: selectedCategory } : {};
-      const response = await axios.get('http://localhost:5000/api/products', { params });
-      
-      // Asegurarnos de que response.data sea un array
-      const allProducts = Array.isArray(response.data) ? response.data : 
-                         response.data.products ? response.data.products : [];
-      
-      setProducts(allProducts);
-      
-      // Obtener productos destacados (los 4 más vendidos o con mejor rating)
-      const featured = [...allProducts]
-        .sort((a, b) => ((b.rating || 0) - (a.rating || 0)))
-        .slice(0, 4);
-      
-      setFeaturedProducts(featured);
-      
-    } catch (err) {
-      console.error('Error fetching products:', err);
-      setError('Error al cargar los productos');
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    // Actualizar productos cuando cambien los filtros o la página
+    dispatch(fetchProducts());
+  }, [dispatch, filters, pagination.page]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    dispatch(setFilters({ search: searchTerm }));
   };
 
-  const handleCategoryChange = (event, newValue) => {
-    setSelectedCategory(newValue);
+  const handleCategoryChange = (_, newValue) => {
+    dispatch(setFilters({ category: newValue === 'Todos' ? '' : newValue }));
+  };
+
+  const handleSortChange = (event) => {
+    const [sortBy, order] = event.target.value.split('_');
+    dispatch(setFilters({ sortBy, order }));
+  };
+
+  const handlePriceChange = (_, newValue) => {
+    setPriceRange(newValue);
+  };
+
+  const handlePriceChangeCommitted = () => {
+    dispatch(setFilters({ priceRange }));
+  };
+
+  const handlePageChange = (_, value) => {
+    dispatch(setPage(value));
+  };
+
+  const handleClearFilters = () => {
+    dispatch(clearFilters());
+    setSearchTerm('');
+    setPriceRange([0, 1000]);
   };
 
   return (
@@ -130,10 +163,78 @@ function Home() {
       </Box>
 
       <Container maxWidth="lg">
+        {/* Barra de búsqueda y filtros */}
+        <Box sx={{ mb: 4 }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <form onSubmit={handleSearch}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <TextField
+                    fullWidth
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar productos..."
+                    size="small"
+                  />
+                  <IconButton type="submit" color="primary">
+                    <SearchIcon />
+                  </IconButton>
+                  <IconButton
+                    color="primary"
+                    onClick={() => setShowFilters(!showFilters)}
+                  >
+                    <FilterListIcon />
+                  </IconButton>
+                </Box>
+              </form>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Ordenar por</InputLabel>
+                <Select
+                  value={`${filters.sortBy}_${filters.order}`}
+                  onChange={handleSortChange}
+                  label="Ordenar por"
+                >
+                  {sortOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+
+          {/* Filtros expandibles */}
+          {showFilters && (
+            <Box sx={{ mt: 2 }}>
+              <Typography gutterBottom>Rango de precios</Typography>
+              <Slider
+                value={priceRange}
+                onChange={handlePriceChange}
+                onChangeCommitted={handlePriceChangeCommitted}
+                valueLabelDisplay="auto"
+                min={0}
+                max={1000}
+                sx={{ width: '100%', maxWidth: 300 }}
+              />
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleClearFilters}
+                sx={{ mt: 1 }}
+              >
+                Limpiar filtros
+              </Button>
+            </Box>
+          )}
+        </Box>
+
         {/* Categorías */}
         <Box sx={{ mb: 4 }}>
           <Tabs
-            value={selectedCategory}
+            value={filters.category || 'Todos'}
             onChange={handleCategoryChange}
             variant="scrollable"
             scrollButtons="auto"
@@ -182,67 +283,35 @@ function Home() {
         {/* Lista de Productos */}
         <Box sx={{ mb: 6 }}>
           <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
-            {selectedCategory === 'Todos' ? 'Todos los Productos' : selectedCategory}
+            {filters.category || 'Todos los Productos'}
           </Typography>
           {loading ? (
             <Box display="flex" justifyContent="center">
               <CircularProgress />
             </Box>
           ) : products.length > 0 ? (
-            <Grid container spacing={4}>
-              {products.map((product) => (
-                <Grid item key={product._id} xs={12} sm={6} md={3}>
-                  <ProductCard product={product} />
-                </Grid>
-              ))}
-            </Grid>
+            <>
+              <Grid container spacing={4}>
+                {products.map((product) => (
+                  <Grid item key={product._id} xs={12} sm={6} md={3}>
+                    <ProductCard product={product} />
+                  </Grid>
+                ))}
+              </Grid>
+              {pagination.totalPages > 1 && (
+                <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+                  <Pagination
+                    count={pagination.totalPages}
+                    page={pagination.page}
+                    onChange={handlePageChange}
+                    color="primary"
+                  />
+                </Box>
+              )}
+            </>
           ) : (
-            <Alert severity="info">
-              No hay productos disponibles en esta categoría.
-            </Alert>
+            <Alert severity="info">No se encontraron productos</Alert>
           )}
-        </Box>
-
-        {/* Características */}
-        <Box sx={{ py: 8 }}>
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="h5" component="h2" gutterBottom>
-                    Envío Rápido
-                  </Typography>
-                  <Typography>
-                    Entrega a domicilio en menos de 24 horas en la ciudad.
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="h5" component="h2" gutterBottom>
-                    Productos Premium
-                  </Typography>
-                  <Typography>
-                    Selección de las mejores marcas nacionales e internacionales.
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="h5" component="h2" gutterBottom>
-                    Pago Seguro
-                  </Typography>
-                  <Typography>
-                    Múltiples métodos de pago con la mayor seguridad.
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
         </Box>
       </Container>
     </Box>
